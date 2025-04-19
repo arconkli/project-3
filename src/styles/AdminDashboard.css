@@ -1,0 +1,116 @@
+/* Add these styles to your existing CSS file */
+
+/* Dashboard controls */
+.dashboard-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 20px 0;
+  padding: 10px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+}
+
+.refresh-button {
+  padding: 8px 16px;
+  background-color: #4a90e2;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.refresh-button:hover {
+  background-color: #3a7bc8;
+}
+
+.refresh-button:disabled {
+  background-color: #a0c3e8;
+  cursor: not-allowed;
+}
+
+.page-size-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.page-size-control select {
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+}
+
+/* Data quality warnings */
+.data-quality-warning {
+  margin: 10px 0;
+  padding: 10px 15px;
+  background-color: #fff3cd;
+  border-left: 4px solid #ffc107;
+  color: #856404;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.data-quality-warning.severe {
+  background-color: #f8d7da;
+  border-left-color: #dc3545;
+  color: #721c24;
+}
+
+.warning-icon {
+  margin-right: 10px;
+  font-size: 18px;
+}
+
+/* Pagination controls */
+.pagination-controls {
+  margin: 20px 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.pagination-section {
+  background-color: #f8f9fa;
+  padding: 15px;
+  border-radius: 8px;
+  flex: 1;
+  min-width: 300px;
+}
+
+.pagination-section h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #495057;
+}
+
+.pagination-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pagination-buttons button {
+  padding: 6px 12px;
+  background-color: #4a90e2;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.pagination-buttons button:disabled {
+  background-color: #a0c3e8;
+  cursor: not-allowed;
+}
+
+.pagination-buttons span {
+  padding: 6px 10px;
+  background-color: #e9ecef;
+  border-radius: 4px;
+  font-weight: 500;
+} 

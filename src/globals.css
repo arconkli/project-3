@@ -1,0 +1,194 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Brand Colors - REMOVED or Neutralized */
+:root {
+  /* --brand-red: #FF4444; */
+  /* --brand-red-dark: #CC3333; */
+  /* --brand-red-light: #FF6666; */
+}
+
+@layer base {
+  /* Use a clean, modern monospace font for all text */
+  body {
+    @apply bg-black text-gray-200 relative; /* Slightly lighter base text */
+    font-family: 'IBM Plex Mono', monospace;
+    line-height: 1.6;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'IBM Plex Mono', monospace;
+    @apply text-white font-medium; /* Ensure headings are white and medium weight */
+  }
+  
+  p, span, div, button, a, li, ul {
+    font-family: 'IBM Plex Mono', monospace;
+    @apply text-gray-300; /* Keep default text as light gray */
+  }
+  
+  /* Override Tailwind's bg-white - Keep for dark cards */
+  .bg-white {
+    background-color: #111 !important; 
+  }
+  
+  /* Brutalist border - Keep */
+  .border-black {
+    border-color: #fff !important;
+  }
+  
+  /* Invert hover styles - Keep */
+  .text-black,
+  .hover\:text-black {
+    color: #fff !important;
+  }
+  .hover\:bg-black {
+    background-color: #fff !important;
+  }
+  .hover\:text-white {
+    color: #111 !important;
+  }
+
+  /* Background Pattern - Keep (already dark) */
+  .bg-pattern {
+    background-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.85));
+  }
+  
+  /* --- UPDATED Button/Input/Card Styles --- */
+  
+  /* Primary Button (e.g., Save, Create) - White background, black text */
+  .btn-primary {
+    @apply relative z-10 px-4 py-2 bg-white hover:bg-gray-200 text-black rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-70 flex items-center justify-center gap-2;
+  }
+  
+  /* Secondary Button (e.g., Cancel, View) - Dark background, white text/border */
+  .btn-secondary {
+    @apply relative z-10 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 text-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-70 flex items-center justify-center gap-2;
+  }
+   /* Add an outline variant */
+  .btn-outline {
+      @apply relative z-10 px-4 py-2 border border-gray-600 rounded-lg hover:border-gray-400 hover:bg-gray-800 text-gray-300 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-70 flex items-center justify-center gap-2;
+  }
+  
+  /* Input Fields */
+  .input-primary {
+    @apply relative z-10 w-full p-3 bg-black border border-gray-700 rounded-lg focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500 transition-colors text-white;
+  }
+  
+  /* Card Styles */
+  .card-primary {
+    @apply relative z-10 p-6 bg-black border border-gray-800 rounded-lg; /* Keep dark */
+  }
+  .card-secondary {
+    @apply relative z-10 p-4 bg-gray-900 border border-gray-700 rounded-lg; /* Slightly lighter dark */
+  }
+  
+  /* Status Colors - Make them grayscale */
+  .status-active {
+    @apply bg-gray-700 text-gray-300;
+  }
+  .status-pending {
+    @apply bg-gray-800 text-gray-400;
+  }
+  .status-draft {
+    @apply bg-gray-900 text-gray-500;
+  }
+  .status-error {
+    @apply bg-red-900/50 text-red-400; /* Keep error red, but maybe muted */
+  }
+}
+
+@layer components {
+  /* Shadow - Keep or adjust */
+  .shadow-brutalist {
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+  }
+  /* Border - Keep */
+  .border-brutalist {
+    border: 1px solid #fff;
+  }
+  
+  /* Remove Brand Gradients */
+  /* .gradient-brand {
+    @apply bg-gradient-to-r from-red-500 to-red-700;
+  } */
+  /* .gradient-hover {
+    @apply hover:bg-gradient-to-r hover:from-red-600 hover:to-red-800;
+  } */
+  
+  /* Form Element Styles - Update focus rings */
+  .form-input {
+    @apply relative z-10 w-full p-3 bg-black border border-gray-700 rounded-lg focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500 transition-colors text-white;
+  }
+  .form-select {
+    @apply relative z-10 w-full p-3 bg-black border border-gray-700 rounded-lg focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500 transition-colors appearance-none text-white;
+    /* Add custom arrow for select */
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 0.5rem center;
+    background-repeat: no-repeat;
+    background-size: 1.5em 1.5em;
+    padding-right: 2.5rem;
+  }
+  .form-button {
+    /* Use btn-primary or btn-secondary/outline instead */
+    /* @apply relative z-10 px-4 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500; */
+  }
+  
+  /* Content Layers - Keep */
+  .content-layer {
+    @apply relative z-10;
+  }
+  .background-layer {
+    @apply fixed inset-0 z-0;
+  }
+}
+
+/* Remove gradient border glow */
+/* .gradient-border-glow {
+  box-shadow: 0 0 20px rgba(255, 0, 0, 0.2);
+} */
+
+/* Custom Scrollbar Styles - Keep (already neutral) */
+/* For Webkit browsers (Chrome, Safari, newer Edge) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* For Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) rgba(0, 0, 0, 0.3);
+}
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) rgba(0, 0, 0, 0.3);
+}
+
+/* Hide scrollbar for elements with the class 'scrollbar-none' */
+.scrollbar-none {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+}

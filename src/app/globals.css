@@ -1,0 +1,99 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Use a clean, modern monospace font for all text */
+  body {
+    @apply bg-black text-white;
+    font-family: 'IBM Plex Mono', monospace;
+    line-height: 1.6;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'IBM Plex Mono', monospace;
+    @apply text-white;
+  }
+  p, span, div, button, a, li, ul {
+    font-family: 'IBM Plex Mono', monospace;
+    @apply text-gray-300;
+  }
+  /* Override Tailwind's bg-white to use a dark card background */
+  .bg-white {
+    background-color: #111 !important;
+  }
+  /* Use a stark white border for a brutalist look */
+  .border-black {
+    border-color: #fff !important;
+  }
+  /* Invert hover styles for clear contrast */
+  .text-black,
+  .hover\:text-black {
+    color: #fff !important;
+  }
+  .hover\:bg-black {
+    background-color: #fff !important;
+  }
+  .hover\:text-white {
+    color: #111 !important;
+  }
+}
+
+@layer components {
+  /* Minimal card shadow for subtle depth */
+  .shadow-brutalist {
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+  }
+  /* Clean, simple border style */
+  .border-brutalist {
+    border: 1px solid #fff;
+  }
+}
+
+.gradient-border-glow {
+  box-shadow: 0 0 20px rgba(255, 0, 0, 0.2);
+}
+
+/* Custom Scrollbar Styles */
+/* For Webkit browsers (Chrome, Safari, newer Edge) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* For Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) rgba(0, 0, 0, 0.3);
+}
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) rgba(0, 0, 0, 0.3);
+}
+
+/* Hide scrollbar for elements with the class 'scrollbar-none' */
+.scrollbar-none {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+}

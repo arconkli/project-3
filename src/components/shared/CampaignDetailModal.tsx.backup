@@ -1,0 +1,1716 @@
+import React, { useState, useEffect } from 'react';
+import { X, Eye, Calendar, DollarSign, Check, AlertCircle, Youtube, Instagram, Twitter, FileText, ArrowUpRight, ChevronRight, Building, Target, Clock, Users, TrendingUp, Hash, BarChart, Share2, Smartphone, Award, Heart, MessageCircle, Video, PieChart, User, UserPlus, Activity, Mail, Edit } from 'lucide-react';
+import { formatMoney, formatNumber } from '@/utils/format';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// Define expanded types locally instead of trying to augment the imported type
+interface Post {
+  platform: string;
+  status: string;
+  views: number | string;
+  earned: number | string;
+  postDate?: string | Date;
+}
+
+interface Brand {
+  name?: string;
+  industry?: string;
+  website?: string;
+  contactName?: string;
+  email?: string;
+  contactPhone?: string;
+  verificationLevel?: string;
+  status?: string;
+}
+
+interface PayoutRate {
+  original?: string;
+  repurposed?: string;
+}
+
+interface Hashtags {
+  original?: string;
+  repurposed?: string;
+}
+
+interface Brief {
+  original?: string;
+  repurposed?: string;
+  goal?: string;
+}
+
+interface File {
+  name: string;
+  url: string;
+  size: number;
+}
+
+interface CreatorPerformance {
+  name?: string;
+  username?: string;
+  followers?: string | number;
+  posts?: number;
+  views?: number;
+  engagement?: string;
+  performance?: 'high' | 'medium' | 'low' | string;
+}
+
+interface JoinedCreator {
+  id?: string;
+  name?: string;
+  username?: string;
+  followers?: string | number;
+  profilePic?: string;
+  status?: string;
+}
+
+interface PlatformBreakdown {
+  name: string;
+  posts: number;
+  percentage: number;
+}
+
+interface CampaignMetrics {
+  totalPosts?: number;
+  totalViews?: number;
+  avgEngagementRate?: string;
+  totalLikes?: number;
+  totalComments?: number;
+  totalShares?: number;
+  totalSaves?: number;
+  viewToEngagementRate?: string;
+  creatorPerformance?: CreatorPerformance[];
+  platformBreakdown?: PlatformBreakdown[];
+  costPerView?: string;
+  costPerEngagement?: string;
+  brandAwarenessIncrease?: string;
+  audienceGrowth?: string;
+  sentimentScore?: string;
+  totalReach?: number;
+  performanceVsBenchmark?: string;
+  rejection_reason?: string;
+  totalCreators?: number;
+}
+
+interface CampaignRequirements {
+  platforms: string[];
+  contentGuidelines?: string[];
+  hashtags?: Hashtags;
+  payoutRate?: PayoutRate;
+  minViewsForPayout: number | string;
+  files?: File[];
+  goal?: string;
+  budget_allocation?: {
+    original: number;
+    repurposed: number;
+  };
+  view_estimates?: {
+    total: number;
+    original: number;
+    repurposed: number;
+  };
+}
+
+interface Campaign {
+  id: string;
+  title: string;
+  status: string;
+  isActive?: boolean;
+  budget: number;
+  spent?: number;
+  views?: number;
+  engagement_rate?: string;
+  completedPosts?: number;
+  earned?: number | string;
+  startDate?: string | Date;
+  start_date?: string | Date;
+  endDate?: string | Date;
+  end_date?: string | Date;
+  requirements: CampaignRequirements;
+  brief?: Brief;
+  contentType?: string;
+  content_type?: string;
+  type?: string;
+  brand?: Brand;
+  description?: string;
+  goal?: string;
+  objective?: string;
+  campaign_goal?: string;
+  goal_type?: string;
+  objective_type?: string;
+  campaign_type?: string;
+  joinedCreators?: number | JoinedCreator[];
+  creatorCount?: number;
+  creators?: JoinedCreator[];
+  metrics?: CampaignMetrics;
+  metadata?: Record<string, any>;
+  data?: Record<string, any>;
+  posts?: Post[];
+  paymentStatus?: string;
+  paymentDate?: string | Date;
+  paymentMethod?: {
+    type: string;
+    last4?: string;
+    email?: string;
+  };
+  created_at?: string | Date;
+  [key: string]: any;
+}
+
+// Alias for backward compatibility
+type AvailableCampaign = Campaign;
+
+interface ConnectedAccount {
+  id: string;
+  username: string;
+  followers: string;
+  isVerified: boolean;
+  isPrimary: boolean;
+  addedOn: string;
+}
+
+interface AccountSelection {
+  [platform: string]: {
+    accountIds: string[];
+    accountTypes: {
+      [accountId: string]: 'original' | 'repurposed' | null;
+    };
+  };
+}
+
+interface CampaignDetailModalProps {
+  campaign: Campaign | AvailableCampaign;
+  onClose: () => void;
+  onJoin?: () => void;
+  onEdit?: (campaign: Campaign | AvailableCampaign) => void;
+  userType?: 'creator' | 'brand' | 'admin';
+  onApprove?: (campaign: Campaign) => void;
+  onReject?: (campaign: Campaign, reason: string) => void;
+}
+
+// Sample connected accounts data (in a real app, this would come from your user state/context)
+const connectedAccounts = {
+  instagram: [
+    {
+      id: 'ig1',
+      username: 'creator.main',
+      followers: '180K',
+      isVerified: true,
+      isPrimary: true,
+      addedOn: '2025-01-15'
+    },
+    {
+      id: 'ig2',
+      username: 'creator.gaming',
+      followers: '85K',
+      isVerified: true,
+      isPrimary: false,
+      addedOn: '2025-02-01'
+    }
+  ],
+  tiktok: [
+    {
+      id: 'tt1',
+      username: 'creator',
+      followers: '500K',
+      isVerified: true,
+      isPrimary: true,
+      addedOn: '2024-12-20'
+    }
+  ],
+  youtube: [
+    {
+      id: 'yt1',
+      username: 'Creator Official',
+      followers: '250K',
+      isVerified: true,
+      isPrimary: true,
+      addedOn: '2025-01-10'
+    }
+  ]
+};
+
+// Helper to check if campaign is active
+const isActiveCampaign = (campaign: Campaign | AvailableCampaign): campaign is Campaign => {
+  return 'posts' in campaign;
+};
+
+// Status Label Component
+const StatusLabel = ({ status }: { status: string }) => {
+  let bgColor, textColor, label;
+
+  switch (status.toLowerCase()) {
+    case 'active':
+      bgColor = 'bg-green-900/20';
+      textColor = 'text-green-400';
+      label = 'ACTIVE';
+      break;
+    case 'approved':
+      bgColor = 'bg-green-900/20';
+      textColor = 'text-green-400';
+      label = 'APPROVED';
+      break;
+    case 'rejected':
+      bgColor = 'bg-red-900/20';
+      textColor = 'text-red-400';
+      label = 'REJECTED';
+      break;
+    case 'pending':
+    case 'pending_approval':
+    case 'pending-approval':
+      bgColor = 'bg-yellow-900/20';
+      textColor = 'text-yellow-400';
+      label = 'PENDING APPROVAL';
+      break;
+    case 'draft':
+      bgColor = 'bg-gray-900/20';
+      textColor = 'text-gray-400';
+      label = 'DRAFT';
+      break;
+    case 'completed':
+      bgColor = 'bg-blue-900/20';
+      textColor = 'text-blue-400';
+      label = 'COMPLETED';
+      break;
+    case 'cancelled':
+      bgColor = 'bg-red-900/20';
+      textColor = 'text-red-400';
+      label = 'CANCELLED';
+      break;
+    default:
+      bgColor = 'bg-gray-900/20';
+      textColor = 'text-gray-400';
+      label = status.toUpperCase();
+  }
+
+  return (
+    <span className={`px-3 py-1 rounded-full text-sm font-medium ${bgColor} ${textColor}`} role="status">
+      {label}
+    </span>
+  );
+};
+
+// Add type definitions for creator-related data structures
+interface CreatorPerformance {
+  name?: string;
+  username?: string;
+  followers?: string | number;
+  posts?: number;
+  views?: number;
+  engagement?: string;
+  performance?: 'high' | 'medium' | 'low' | string;
+}
+
+interface JoinedCreator {
+  id?: string;
+  name?: string;
+  username?: string;
+  followers?: string | number;
+  profilePic?: string;
+  status?: string;
+}
+
+const CampaignDetailModal: React.FC<CampaignDetailModalProps> = ({ 
+  campaign, 
+  onClose, 
+  onJoin,
+  onEdit,
+  userType = 'creator',
+  onApprove,
+  onReject
+}) => {
+  const [showJoinFlow, setShowJoinFlow] = useState(false);
+  const [showAccountSelection, setShowAccountSelection] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [selectedAccounts, setSelectedAccounts] = useState<AccountSelection>({});
+  const [error, setError] = useState<string | null>(null);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
+
+  // Debug log to see the campaign data structure
+  useEffect(() => {
+    console.log('Campaign data in modal (full structure):', JSON.stringify(campaign, null, 2));
+    console.log('Joined creators field possibilities:', {
+      'campaign.joinedCreators': campaign.joinedCreators,
+      'campaign.creatorCount': campaign.creatorCount,
+      'campaign.metrics?.totalCreators': campaign.metrics?.totalCreators,
+      'campaign.metrics?.creatorPerformance': campaign.metrics?.creatorPerformance,
+      'campaign.totalCreators': campaign.totalCreators,
+      'campaign.creators': campaign.creators
+    });
+    // Add more specific logging for campaign goal fields and their values
+    const goalFieldsLogging = {
+      'campaign.goal': campaign.goal,
+      'campaign.objective': campaign.objective,
+      'campaign.campaign_goal': campaign.campaign_goal,
+      'campaign.objective_type': campaign.objective_type,
+      'campaign.goal_type': campaign.goal_type,
+      'campaign.campaign_type': campaign.campaign_type,
+      'campaign.metadata?.goal': campaign.metadata?.goal,
+      'campaign.metadata?.objective': campaign.metadata?.objective,
+      'campaign.metadata?.objective_type': campaign.metadata?.objective_type,
+      'campaign.metadata?.campaign_type': campaign.metadata?.campaign_type,
+      'campaign.requirements?.goal': campaign.requirements?.goal,
+      'campaign.data?.goal': campaign.data?.goal,
+      'campaign.data?.objective': campaign.data?.objective,
+      'campaign.data?.objective_type': campaign.data?.objective_type,
+      'campaign.data?.campaign_type': campaign.data?.campaign_type,
+      'campaign.brief': campaign.brief,
+      'campaign.description': campaign.description,
+    };
+    console.log('All possible campaign goal fields:', goalFieldsLogging);
+  }, [campaign]);
+
+  // Helper to get correct field values regardless of naming
+  const getCampaignField = (fieldOptions: string[], fallback: any = null) => {
+    for (const field of fieldOptions) {
+      if (field.includes('.')) {
+        // Handle nested fields like 'brand.name'
+        const parts = field.split('.');
+        let value = campaign as any;
+        let valid = true;
+        
+        for (const part of parts) {
+          if (value && typeof value === 'object' && part in value) {
+            value = value[part];
+          } else {
+            valid = false;
+            break;
+          }
+        }
+        
+        if (valid && value !== undefined && value !== null) {
+          return value;
+        }
+      } else if (field in campaign && campaign[field as keyof typeof campaign] !== undefined && campaign[field as keyof typeof campaign] !== null) {
+        return campaign[field as keyof typeof campaign];
+      }
+    }
+    return fallback;
+  };
+
+  // Find the campaign goal from multiple possible fields
+  const findCampaignGoal = () => {
+    console.log('[findCampaignGoal] Starting goal detection process');
+    
+    // Common campaign goal options
+    const commonGoals = [
+      'brand awareness', 'content promotion', 'drive viewership', 'drive streaming', 
+      'product launch', 'engagement', 'reach', 'conversion', 'sales'
+    ];
+    
+    // List of fields to check for goal information (in order of preference)
+    const fieldsToCheck = [
+      'objective_type', 'goal_type', 'campaign_type', 'objective', 'goal', 'campaign_goal',
+      'metadata.objective_type', 'metadata.goal_type', 'metadata.campaign_type', 
+      'metadata.objective', 'metadata.goal',
+      'data.objective_type', 'data.goal_type', 'data.campaign_type',
+      'data.objective', 'data.goal',
+      'requirements.goal'
+    ];
+    
+    // Check each field for a non-empty value
+    for (const field of fieldsToCheck) {
+      const value = getCampaignField([field], null);
+      console.log(`[findCampaignGoal] Checking field: ${field} = `, value);
+      if (value) {
+        // If the value is a string and appears to be a goal type, return it
+        if (typeof value === 'string') {
+          console.log(`[findCampaignGoal] Found goal in field '${field}': ${value}`);
+          // Capitalize first letter of each word for display
+          return value.split(' ').map(word => 
+            word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+          ).join(' ');
+        }
+      }
+    }
+    
+    // Check if the brief contains any of the common goal keywords
+    if (campaign.brief?.original) {
+      console.log('[findCampaignGoal] Checking campaign brief for goal keywords');
+      const briefText = campaign.brief.original.toLowerCase();
+      for (const goal of commonGoals) {
+        if (briefText.includes(goal.toLowerCase())) {
+          console.log(`[findCampaignGoal] Found goal keyword in brief: ${goal}`);
+          // Capitalize first letter of each word for display
+          return goal.split(' ').map(word => 
+            word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+          ).join(' ');
+        }
+      }
+      console.log('[findCampaignGoal] No goal keywords found in brief');
+    }
+    
+    // If description exists, use it
+    if (campaign.description && typeof campaign.description === 'string') {
+      console.log(`[findCampaignGoal] Using description as goal: ${campaign.description}`);
+      return campaign.description;
+    }
+    
+    console.log('[findCampaignGoal] No goal found, using default: "Brand Awareness"');
+    // Default fallback
+    return "Brand Awareness"; // Default to a common campaign goal instead of "Not specified"
+  };
+
+  // Get the campaign goal using our new function
+  const campaignGoal = findCampaignGoal();
+
+  // Get joined creators count dynamically from campaign data
+  const getJoinedCreatorsCount = () => {
+    // Check all possible fields where creator count might be stored
+    const possibleFields = [
+      'joinedCreators', 
+      'creatorCount', 
+      'metrics.totalCreators', 
+      'totalCreators',
+      'metrics.joinedCreators',
+      'data.joinedCreators',
+      'data.creatorCount'
+    ];
+    
+    // First try direct number fields
+    for (const field of possibleFields) {
+      const value = getCampaignField([field], null);
+      if (value !== null && value !== undefined && !isNaN(Number(value))) {
+        console.log(`Found joined creators count in field: ${field} = ${value}`);
+        return Number(value);
+      }
+    }
+    
+    // Next check arrays and count their length
+    // Special case: if joinedCreators is an array
+    if (Array.isArray(campaign.joinedCreators)) {
+      console.log(`Found joinedCreators array with length: ${campaign.joinedCreators.length}`);
+      return campaign.joinedCreators.length;
+    }
+    
+    // Special case: if there's a creatorPerformance array, count its items
+    if (Array.isArray(campaign.metrics?.creatorPerformance)) {
+      console.log(`Found creatorPerformance array with length: ${campaign.metrics.creatorPerformance.length}`);
+      return campaign.metrics.creatorPerformance.length;
+    }
+    
+    // Special case: if there's a creators array, count its items
+    if (Array.isArray(campaign.creators)) {
+      console.log(`Found creators array with length: ${campaign.creators.length}`);
+      return campaign.creators.length;
+    }
+    
+    // If we've been explicitly told in the URL that a creator has joined,
+    // return 1 as a last resort
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('creatorJoined') === 'true') {
+      console.log('Creator joined parameter found in URL, setting count to 1');
+      return 1;
+    }
+    
+    console.log('Could not find joined creators count in any field, defaulting to 0');
+    return 0;
+  };
+
+  const campaignContentType = getCampaignField(['contentType', 'content_type', 'type'], 'Not specified');
+  const campaignStartDate = getCampaignField(['startDate', 'start_date', 'startAt', 'start_at']);
+  const campaignEndDate = getCampaignField(['endDate', 'end_date', 'endAt', 'end_at']);
+  const campaignBudget = getCampaignField(['budget', 'total_budget'], 0);
+  const campaignSpent = getCampaignField(['spent', 'budget_spent', 'used_budget'], 0);
+
+  // Get the joined creators count dynamically
+  const joinedCreatorsCount = getJoinedCreatorsCount();
+
+  // Formatting helpers
+  const formatDate = (date: string | Date | null | undefined) => {
+    if (!date) return 'Not set';
+    try {
+      return new Date(date).toLocaleDateString();
+    } catch (e) {
+      console.error('Error formatting date:', e);
+      return 'Invalid date';
+    }
+  };
+
+  // Handle ESC key
+  useEffect(() => {
+    const handleEsc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [onClose]);
+
+  const handleStartJoin = () => {
+    setShowAccountSelection(true);
+  };
+
+  const handleAccountSelect = (platform: string, accountId: string, isSelected: boolean) => {
+    if (isSelected) {
+      // Remove account from selection
+      setSelectedAccounts(prev => ({
+        ...prev,
+        [platform]: {
+          accountIds: prev[platform]?.accountIds.filter(id => id !== accountId) || [], 
+          accountTypes: {
+            ...prev[platform]?.accountTypes
+          }
+        }
+      }));
+    } else {
+      // Add account to selection
+      setSelectedAccounts(prev => ({
+        ...prev,
+        [platform]: {
+          accountIds: [...(prev[platform]?.accountIds || []), accountId],
+          accountTypes: {
+            ...prev[platform]?.accountTypes || {},
+            [accountId]: null
+          }
+        }
+      }));
+    }
+  };
+
+  const handleContentTypeSelect = (platform: string, accountId: string, contentType: 'original' | 'repurposed') => {
+    if (platform && accountId) {
+      setSelectedAccounts(prev => ({
+        ...prev,
+        [platform]: { 
+          accountIds: prev[platform]?.accountIds || [],
+          accountTypes: {
+            ...prev[platform]?.accountTypes,
+            [accountId]: contentType
+          }
+        }
+      }));
+    }
+  };
+
+  const handleSubmitJoin = () => {
+    // Validate selections
+    const requiredPlatforms = campaign.requirements.platforms;
+    const missingPlatforms = requiredPlatforms.filter(platform => !selectedAccounts[platform.toLowerCase()]);
+    
+    if (missingPlatforms.length > 0) {
+      setError(`Please select accounts for: ${missingPlatforms.join(', ')}`);
+      return;
+    }
+    
+    // Validate content types are selected
+    const missingContentTypes = Object.values(selectedAccounts).some(platform => 
+      platform.accountIds.some(accountId => platform.accountTypes[accountId] === null)
+    );
+    if (missingContentTypes) {
+      setError('Please select content types for all accounts');
+      return;
+    }
+    
+    // Show confirmation step
+    setError(null);
+    setShowConfirmation(true);
+  };
+
+  const handleConfirmJoin = () => {
+    if (!termsAccepted) {
+      setError('Please accept the campaign terms and requirements');
+      return;
+    }
+    
+    // Call the join handler with the selected accounts
+    if (onJoin) {
+      onJoin();
+    }
+  };
+
+  // For brand view, customize the display
+  if (userType === 'brand') {
+    return (
+      <div
+        className="fixed inset-0 bg-black bg-opacity-80 backdrop-blur-sm flex items-center justify-center p-4 md:p-6 z-50"
+        onClick={(e) => {
+          // Only close if clicking the backdrop
+          if (e.target === e.currentTarget) {
+            onClose();
+          }
+        }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="campaign-title"
+        aria-describedby="campaign-description"
+      >
+        <div
+          className="bg-black/40 border border-gray-800 rounded-lg p-6 md:p-8 w-full max-w-4xl max-h-[90vh] overflow-y-auto custom-scrollbar"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="sticky top-0 z-10 bg-black/95 border-b border-gray-800/60 p-4 flex items-center justify-between backdrop-blur-sm">
+            <h2 className="text-xl font-bold text-white">{campaign.title}</h2>
+            <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-lg transition-colors">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="p-6 space-y-8">
+            {/* Status Information */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <StatusLabel status={campaign.status} />
+                {campaign.isActive && (
+                  <span className="px-3 py-1 rounded-full bg-blue-900/20 text-blue-400 text-xs font-medium">
+                    Live Campaign
+                  </span>
+                )}
+              </div>
+
+              {onEdit && (
+                <button
+                  onClick={() => onEdit(campaign)}
+                  className="flex items-center gap-1 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-white text-sm transition-colors"
+                >
+                  <FileText className="h-4 w-4" />
+                  Edit Campaign
+                </button>
+              )}
+            </div>
+
+            {/* Rejection Feedback (if rejected) */}
+            {campaign.status === 'rejected' && campaign.metrics?.rejection_reason && (
+              <div className="p-4 bg-red-900/10 border border-red-800/30 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-red-400 flex-shrink-0 mt-1" />
+                  <div>
+                    <h3 className="text-red-400 font-medium mb-1">Campaign Rejected</h3>
+                    <p className="text-gray-300">{campaign.metrics.rejection_reason}</p>
+                    <div className="mt-3">
+                      {userType === 'brand' ? (
+                        <div className="mt-3">
+                          <p className="text-sm text-gray-300 mb-2">
+                            To resubmit this campaign with changes, please email us at:
+                          </p>
+                          <a
+                            href="mailto:brands@create-os.com"
+                            className="text-sm px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-white inline-flex items-center gap-1"
+                          >
+                            brands@create-os.com
+                            <ArrowUpRight className="h-3 w-3" />
+                          </a>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => onEdit?.(campaign)}
+                          className="text-sm px-3 py-1.5 bg-red-600 hover:bg-red-700 rounded text-white"
+                        >
+                          Edit Campaign to Resubmit
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Campaign Performance Dashboard (for active/completed campaigns) */}
+            {(campaign.status === 'active' || campaign.status === 'completed' || campaign.status === 'approved') && (
+              <div className="bg-gray-900/30 rounded-xl p-6 border border-gray-800">
+                <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                  <BarChart className="h-6 w-6 text-purple-400" />
+                  Campaign Performance
+                </h3>
+              
+                {/* Top Stats Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                  <div className="bg-black/40 rounded-lg p-4 border border-gray-800">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Video className="h-5 w-5 text-blue-400" />
+                      <p className="text-sm text-gray-400">Total Content</p>
+                    </div>
+                    <p className="text-2xl font-bold">{campaign.metrics?.totalPosts || '0'}</p>
+                    <p className="text-xs text-gray-500">videos published</p>
+                  </div>
+                  
+                  <div className="bg-black/40 rounded-lg p-4 border border-gray-800">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Eye className="h-5 w-5 text-green-400" />
+                      <p className="text-sm text-gray-400">Total Views</p>
+                    </div>
+                    <p className="text-2xl font-bold">{formatNumber(campaign.metrics?.totalViews || 0)}</p>
+                    <p className="text-xs text-gray-500">across all platforms</p>
+                  </div>
+                  
+                  <div className="bg-black/40 rounded-lg p-4 border border-gray-800">
+                    <div className="flex items-center gap-2 mb-2">
+                      <User className="h-5 w-5 text-orange-400" />
+                      <p className="text-sm text-gray-400">Creators</p>
+                    </div>
+                    <p className="text-2xl font-bold">{joinedCreatorsCount}</p>
+                    <p className="text-xs text-gray-500">joined campaign</p>
+                  </div>
+                  
+                  <div className="bg-black/40 rounded-lg p-4 border border-gray-800">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Heart className="h-5 w-5 text-red-400" />
+                      <p className="text-sm text-gray-400">Engagement</p>
+                    </div>
+                    <p className="text-2xl font-bold">{campaign.metrics?.avgEngagementRate || '0%'}</p>
+                    <p className="text-xs text-gray-500">average rate</p>
+                  </div>
+                </div>
+                
+                {/* Platform Distribution */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                  <div className="bg-black/30 rounded-lg p-5 border border-gray-800">
+                    <h4 className="font-medium mb-4 flex items-center gap-2">
+                      <PieChart className="h-5 w-5 text-blue-400" />
+                      Content Distribution by Platform
+                    </h4>
+                    
+                    <div className="space-y-4">
+                      {(campaign.metrics?.platformBreakdown || []).map((platform, index) => (
+                        <div key={index} className="relative">
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                              {platform.name === 'Instagram' && <Instagram className="h-4 w-4 text-pink-400" />}
+                              {platform.name === 'TikTok' && (
+                                <svg className="h-4 w-4 text-cyan-400" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z" />
+                                </svg>
+                              )}
+                              {platform.name === 'YouTube' && <Youtube className="h-4 w-4 text-red-400" />}
+                              {platform.name === 'Twitter' && <Twitter className="h-4 w-4 text-blue-400" />}
+                              
+                              <span className="text-sm">{platform.name}</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="text-sm font-medium">{platform.posts} posts</span>
+                              <span className="text-xs text-gray-500">{platform.percentage}%</span>
+                            </div>
+                          </div>
+                          <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full ${
+                                platform.name === 'Instagram' ? 'bg-pink-500' :
+                                platform.name === 'TikTok' ? 'bg-cyan-500' :
+                                platform.name === 'YouTube' ? 'bg-red-500' :
+                                'bg-blue-500'
+                              }`}
+                              style={{ width: `${platform.percentage}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div className="bg-black/30 rounded-lg p-5 border border-gray-800">
+                    <h4 className="font-medium mb-4 flex items-center gap-2">
+                      <Activity className="h-5 w-5 text-green-400" />
+                      Engagement Metrics
+                    </h4>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">Likes</p>
+                        <p className="text-xl font-bold">{formatNumber(campaign.metrics?.totalLikes || 0)}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">Comments</p>
+                        <p className="text-xl font-bold">{formatNumber(campaign.metrics?.totalComments || 0)}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">Shares</p>
+                        <p className="text-xl font-bold">{formatNumber(campaign.metrics?.totalShares || 0)}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">Saves</p>
+                        <p className="text-xl font-bold">{formatNumber(campaign.metrics?.totalSaves || 0)}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-4 pt-4 border-t border-gray-700">
+                      <div className="flex justify-between items-center mb-2">
+                        <p className="text-sm text-gray-400">View to Engagement Rate</p>
+                        <p className="text-sm font-medium">{campaign.metrics?.viewToEngagementRate || '0%'}</p>
+                      </div>
+                      <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-purple-500 to-red-500"
+                          style={{ width: `${parseFloat(campaign.metrics?.viewToEngagementRate || '0')}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Creator Participation */}
+                <div className="bg-black/30 rounded-lg p-5 border border-gray-800">
+                  <h4 className="font-medium mb-4 flex items-center gap-2">
+                    <Users className="h-5 w-5 text-purple-400" />
+                    Creator Participation
+                  </h4>
+                  
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[600px] border-collapse">
+                      <thead>
+                        <tr className="border-b border-gray-800">
+                          <th className="text-left py-3 text-xs font-medium text-gray-400">Creator</th>
+                          <th className="text-left py-3 text-xs font-medium text-gray-400">Followers</th>
+                          <th className="text-left py-3 text-xs font-medium text-gray-400">Posts</th>
+                          <th className="text-left py-3 text-xs font-medium text-gray-400">Views</th>
+                          <th className="text-left py-3 text-xs font-medium text-gray-400">Engagement</th>
+                          <th className="text-left py-3 text-xs font-medium text-gray-400">Performance</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {joinedCreatorsCount > 0 ? (
+                          // If we have creator performance data, show it
+                          Array.isArray(campaign.metrics?.creatorPerformance) && campaign.metrics.creatorPerformance.length > 0 ? (
+                            campaign.metrics.creatorPerformance.map((creator: CreatorPerformance, index: number) => (
+                              <tr key={index} className="border-b border-gray-800">
+                                <td className="py-3">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center">
+                                      <User className="h-4 w-4 text-gray-400" />
+                                    </div>
+                                    <div>
+                                      <p className="font-medium text-sm">{creator.name || 'Creator'}</p>
+                                      <p className="text-xs text-gray-500">@{creator.username || 'username'}</p>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="py-3 text-sm">{creator.followers || 'N/A'}</td>
+                                <td className="py-3 text-sm">{creator.posts || '0'}</td>
+                                <td className="py-3 text-sm">{formatNumber(creator.views || 0)}</td>
+                                <td className="py-3 text-sm">{creator.engagement || '0%'}</td>
+                                <td className="py-3">
+                                  <span className={`px-2 py-1 rounded-full text-xs ${
+                                    creator.performance === 'high' ? 'bg-green-900/20 text-green-400' :
+                                    creator.performance === 'medium' ? 'bg-yellow-900/20 text-yellow-400' :
+                                    creator.performance === 'low' ? 'bg-red-900/20 text-red-400' :
+                                    'bg-yellow-900/20 text-yellow-400'
+                                  }`}>
+                                    {creator.performance ? (creator.performance.charAt(0).toUpperCase() + creator.performance.slice(1)) : 'New'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            // If we know creators have joined but don't have detailed performance data
+                            Array.isArray(campaign.creators) && campaign.creators.length > 0 ? (
+                              campaign.creators.map((creator: any, index: number) => (
+                                <tr key={index} className="border-b border-gray-800">
+                                  <td className="py-3">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center">
+                                        <User className="h-4 w-4 text-gray-400" />
+                                      </div>
+                                      <div>
+                                        <p className="font-medium text-sm">
+                                          {/* Try to get the name from various possible locations */}
+                                          {creator.name || 
+                                           creator.username || 
+                                           creator.creator?.email?.split('@')[0] ||
+                                           'Creator'}
+                                        </p>
+                                        <p className="text-xs text-gray-500">
+                                          {creator.creator?.email || 'No email'}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 text-sm">{creator.followers || 'N/A'}</td>
+                                  <td className="py-3 text-sm">{creator.metrics?.posts_submitted || '0'}</td>
+                                  <td className="py-3 text-sm">{formatNumber(creator.metrics?.views || 0)}</td>
+                                  <td className="py-3 text-sm">{creator.engagement || '-'}</td>
+                                  <td className="py-3">
+                                    <span className={`px-2 py-1 rounded-full text-xs ${
+                                      creator.status === 'active' 
+                                        ? 'bg-green-900/20 text-green-400'
+                                        : 'bg-yellow-900/20 text-yellow-400'
+                                    }`}>
+                                      {creator.status === 'active' ? 'Active' : 'Pending'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              // Generic placeholder for when we know creators have joined but have no data
+                              <tr className="border-b border-gray-800">
+                                <td className="py-3">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center">
+                                      <User className="h-4 w-4 text-gray-400" />
+                                    </div>
+                                    <div>
+                                      <p className="font-medium text-sm">Creator</p>
+                                      <p className="text-xs text-gray-500">@username</p>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="py-3 text-sm">N/A</td>
+                                <td className="py-3 text-sm">0</td>
+                                <td className="py-3 text-sm">0</td>
+                                <td className="py-3 text-sm">-</td>
+                                <td className="py-3">
+                                  <span className="px-2 py-1 rounded-full text-xs bg-yellow-900/20 text-yellow-400">
+                                    New
+                                  </span>
+                                </td>
+                              </tr>
+                            )
+                          )
+                        ) : (
+                          // No creators have joined
+                          <tr className="border-b border-gray-800">
+                            <td colSpan={6} className="py-6 text-center text-gray-500">
+                              No creators have joined this campaign yet.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                
+                {/* Budget Utilization */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+                  <div className="bg-black/30 rounded-lg p-5 border border-gray-800">
+                    <h4 className="font-medium mb-4 flex items-center gap-2">
+                      <DollarSign className="h-5 w-5 text-green-400" />
+                      Budget Utilization
+                    </h4>
+                    
+                    <div className="mb-4">
+                      <div className="flex justify-between items-end mb-2">
+                        <div>
+                          <p className="text-sm text-gray-400">Total Budget</p>
+                          <p className="text-xl font-bold text-white">${formatMoney(campaignBudget)}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-gray-400">Spent</p>
+                          <p className="text-xl font-bold text-green-400">${formatMoney(campaignSpent)}</p>
+                        </div>
+                      </div>
+                      <div className="h-3 bg-gray-800 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-green-500 to-blue-500"
+                          style={{ width: `${Math.min(((Number(campaignSpent || 0) / Number(campaignBudget || 1)) * 100), 100)}%` }}
+                        ></div>
+                      </div>
+                      <p className="text-right text-xs text-gray-500 mt-1">
+                        {Math.round(((Number(campaignSpent || 0) / Number(campaignBudget || 1)) * 100))}% utilized
+                      </p>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4 mt-6">
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">Cost per View</p>
+                        <p className="text-lg font-bold">${campaign.metrics?.costPerView || '$0.00'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">Cost per Engagement</p>
+                        <p className="text-lg font-bold">${campaign.metrics?.costPerEngagement || '$0.00'}</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-black/30 rounded-lg p-5 border border-gray-800">
+                    <h4 className="font-medium mb-4 flex items-center gap-2">
+                      <TrendingUp className="h-5 w-5 text-blue-400" />
+                      Campaign Impact
+                    </h4>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">Brand Awareness</p>
+                        <p className="text-lg font-bold">+{campaign.metrics?.brandAwarenessIncrease || '0%'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">Audience Growth</p>
+                        <p className="text-lg font-bold">+{campaign.metrics?.audienceGrowth || '0%'}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4 mt-4">
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">Sentiment</p>
+                        <p className="text-lg font-bold">{campaign.metrics?.sentimentScore || 'Neutral'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">Reach</p>
+                        <p className="text-lg font-bold">{formatNumber(campaign.metrics?.totalReach || 0)}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-6 bg-black/20 rounded-lg p-3 border border-dashed border-gray-700">
+                      <p className="text-sm text-gray-300">Campaign is performing {campaign.metrics?.performanceVsBenchmark || 'on par with'} similar campaigns in your industry</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Campaign Overview Section */}
+            <div className="bg-gray-900/30 rounded-xl p-6 border border-gray-800">
+              <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                <FileText className="h-6 w-6 text-blue-400" />
+                Campaign Overview
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-5">
+                  <div>
+                    <h4 className="text-sm text-gray-400 mb-2">Campaign Title</h4>
+                    <p className="text-lg font-medium text-white">{campaign.title}</p>
+                  </div>
+                  
+                  <div>
+                    <h4 className="text-sm text-gray-400 mb-2">Campaign Goal</h4>
+                    <p className="text-lg font-medium text-white">{campaignGoal}</p>
+                  </div>
+                  
+                  <div>
+                    <h4 className="text-sm text-gray-400 mb-2">Campaign Duration</h4>
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-5 w-5 text-blue-400" />
+                      <p className="text-white">{formatDate(campaignStartDate)} - {formatDate(campaignEndDate)}</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-sm text-gray-400 mb-2">Content Type</h4>
+                    <p className="text-lg font-medium text-white capitalize">{campaignContentType}</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-5">
+                  <div>
+                    <h4 className="text-sm text-gray-400 mb-2">Total Budget</h4>
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="h-5 w-5 text-green-400" />
+                      <p className="text-lg font-medium text-green-400">${formatNumber(campaignBudget)}</p>
+                    </div>
+                    {campaignSpent > 0 && (
+                      <p className="text-sm text-gray-400 mt-1 ml-7">
+                        ${formatNumber(campaignSpent)} spent ({Math.round((campaignSpent / campaignBudget) * 100)}%)
+                      </p>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <h4 className="text-sm text-gray-400 mb-2">Target Platforms</h4>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {(campaign.requirements?.platforms || campaign.platforms || []).map((platform: string, index: number) => (
+                        <span key={index} className="px-3 py-1 bg-purple-900/20 text-purple-400 rounded-full text-sm flex items-center gap-1">
+                          {platform === 'instagram' && <Instagram className="h-4 w-4" />}
+                          {platform === 'tiktok' && (
+                            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z" />
+                            </svg>
+                          )}
+                          {platform === 'youtube' && <Youtube className="h-4 w-4" />}
+                          {platform === 'twitter' && <Twitter className="h-4 w-4" />}
+                          {platform}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Budget & Payout Section */}
+            <div className="bg-gray-900/30 rounded-xl p-6 border border-gray-800">
+              <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                <DollarSign className="h-6 w-6 text-green-400" />
+                Budget & Payout Details
+              </h3>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                {/* Total Budget Overview */}
+                <div className="lg:col-span-3 p-5 bg-black/40 rounded-lg border border-gray-800/60">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <h4 className="text-lg font-medium text-white mb-2">Campaign Budget</h4>
+                      <p className="text-3xl font-bold text-green-400">${formatNumber(campaignBudget)}</p>
+                      {campaignSpent > 0 && (
+                        <p className="text-sm text-gray-400 mt-1">
+                          ${formatNumber(campaignSpent)} spent ({Math.round((campaignSpent / campaignBudget) * 100)}%)
+                        </p>
+                      )}
+                    </div>
+                    
+                    {campaign.requirements?.view_estimates?.total && (
+                      <div className="mt-4 md:mt-0 md:text-right">
+                        <h4 className="text-sm text-gray-400 mb-1">Total Estimated Views</h4>
+                        <p className="text-2xl font-bold text-white">{formatNumber(campaign.requirements.view_estimates.total)}</p>
+                        <p className="text-xs text-gray-500">
+                          Cost per view: ${((campaignBudget / campaign.requirements.view_estimates.total) || 0).toFixed(4)}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Budget Allocation */}
+                <div className="p-5 bg-black/40 rounded-lg border border-gray-800/60">
+                  <h4 className="text-base font-medium text-white mb-4 flex items-center gap-2">
+                    <PieChart className="h-5 w-5 text-purple-400" />
+                    Budget Allocation
+                  </h4>
+                  
+                  {campaign.requirements?.budget_allocation ? (
+                    <div>
+                      <div className="mb-4">
+                        <div className="flex justify-between mb-1">
+                          <span className="text-sm text-gray-400">Original Content</span>
+                          <span className="text-sm font-medium text-white">{campaign.requirements.budget_allocation.original}%</span>
+                        </div>
+                        <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-green-500"
+                            style={{ width: `${campaign.requirements.budget_allocation.original}%` }}
+                          ></div>
+                        </div>
+                        <div className="flex justify-between items-center mt-1">
+                          <span className="text-xs text-gray-500">
+                            ${formatNumber((campaignBudget * campaign.requirements.budget_allocation.original) / 100)}
+                          </span>
+                          {campaign.requirements.view_estimates?.original && (
+                            <span className="text-xs text-gray-500">
+                              Est. Views: {formatNumber(campaign.requirements.view_estimates.original)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="mb-2">
+                        <div className="flex justify-between mb-1">
+                          <span className="text-sm text-gray-400">Repurposed Content</span>
+                          <span className="text-sm font-medium text-white">{campaign.requirements.budget_allocation.repurposed}%</span>
+                        </div>
+                        <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-blue-500"
+                            style={{ width: `${campaign.requirements.budget_allocation.repurposed}%` }}
+                          ></div>
+                        </div>
+                        <div className="flex justify-between items-center mt-1">
+                          <span className="text-xs text-gray-500">
+                            ${formatNumber((campaignBudget * campaign.requirements.budget_allocation.repurposed) / 100)}
+                          </span>
+                          {campaign.requirements.view_estimates?.repurposed && (
+                            <span className="text-xs text-gray-500">
+                              Est. Views: {formatNumber(campaign.requirements.view_estimates.repurposed)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-gray-500">No budget allocation specified</p>
+                  )}
+                </div>
+                
+                {/* Payout Rates */}
+                <div className="p-5 bg-black/40 rounded-lg border border-gray-800/60">
+                  <h4 className="text-base font-medium text-white mb-4 flex items-center gap-2">
+                    <DollarSign className="h-5 w-5 text-green-400" />
+                    Creator Payout Rates
+                  </h4>
+                  
+                  <div className="space-y-4">
+                    {campaign.requirements?.payoutRate?.original && (campaignContentType.toLowerCase() === 'original' || campaignContentType.toLowerCase() === 'both') && (
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-green-900/30 flex items-center justify-center">
+                            <Video className="h-4 w-4 text-green-400" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-white">Original Content</p>
+                            <p className="text-xs text-gray-400">Per approved post</p>
+                          </div>
+                        </div>
+                        <p className="text-lg font-bold text-green-400">${campaign.requirements.payoutRate.original}</p>
+                      </div>
+                    )}
+                    
+                    {campaign.requirements?.payoutRate?.repurposed && (campaignContentType.toLowerCase() === 'repurposed' || campaignContentType.toLowerCase() === 'both') && (
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-blue-900/30 flex items-center justify-center">
+                            <Share2 className="h-4 w-4 text-blue-400" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-white">Repurposed Content</p>
+                            <p className="text-xs text-gray-400">Per approved post</p>
+                          </div>
+                        </div>
+                        <p className="text-lg font-bold text-blue-400">${campaign.requirements.payoutRate.repurposed}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Content Brief & Guidelines */}
+            <div className="bg-gray-900/30 rounded-xl p-6 border border-gray-800">
+              <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                <FileText className="h-6 w-6 text-orange-400" />
+                Content Guidelines
+              </h3>
+              
+              {/* Required Hashtags */}
+              <div className="p-5 bg-black/40 rounded-lg border border-gray-800/60 mb-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Hash className="h-4 w-4 text-blue-400" />
+                  <h4 className="text-base font-medium text-white">Required Hashtags</h4>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <h5 className="text-sm text-gray-400 mb-2">Original Content</h5>
+                    {campaign.requirements?.hashtags?.original ? (
+                      <div className="flex flex-wrap gap-2">
+                        {campaign.requirements.hashtags.original.split(' ').map((tag, index) => (
+                          <span key={index} className="px-3 py-1 bg-blue-900/20 text-blue-400 rounded-full text-sm">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">No hashtags specified</p>
+                    )}
+                  </div>
+                  
+                  {(campaignContentType.toLowerCase() === 'repurposed' || campaignContentType.toLowerCase() === 'both') && (
+                    <div>
+                      <h5 className="text-sm text-gray-400 mb-2">Repurposed Content</h5>
+                      {campaign.requirements?.hashtags?.repurposed ? (
+                        <div className="flex flex-wrap gap-2">
+                          {campaign.requirements.hashtags.repurposed.split(' ').map((tag, index) => (
+                            <span key={index} className="px-3 py-1 bg-blue-900/20 text-blue-400 rounded-full text-sm">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500">No hashtags specified</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Content Guidelines */}
+              <div className="p-5 bg-black/40 rounded-lg border border-gray-800/60 mb-5">
+                <h4 className="text-base font-medium text-white mb-3">Guidelines for Creators</h4>
+                
+                {(campaignContentType.toLowerCase() === 'original' || campaignContentType.toLowerCase() === 'both') && (
+                  <div className="mb-4">
+                    <h5 className="text-sm text-gray-400 mb-2 flex items-center gap-2">
+                      <Video className="h-4 w-4 text-green-400" />
+                      Original Content Guidelines
+                    </h5>
+                    {campaign.requirements?.contentGuidelines && campaign.requirements.contentGuidelines.length > 0 ? (
+                      <ul className="list-disc pl-5 space-y-2">
+                        {campaign.requirements.contentGuidelines
+                          .filter((_, index) => {
+                            // If content type is both, assume first half of guidelines are for original
+                            if (campaignContentType.toLowerCase() === 'both') {
+                              return index < Math.ceil((campaign.requirements?.contentGuidelines?.length || 0) / 2);
+                            }
+                            return true; // If content type is original, show all guidelines
+                          })
+                          .map((guideline: string, index: number) => (
+                            <li key={index} className="text-white">{guideline}</li>
+                          ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-gray-500">No content guidelines specified</p>
+                    )}
+                  </div>
+                )}
+                
+                {(campaignContentType.toLowerCase() === 'repurposed' || campaignContentType.toLowerCase() === 'both') && (
+                  <div>
+                    <h5 className="text-sm text-gray-400 mb-2 flex items-center gap-2">
+                      <Share2 className="h-4 w-4 text-blue-400" />
+                      Repurposed Content Guidelines
+                    </h5>
+                    {campaign.requirements?.contentGuidelines && campaign.requirements.contentGuidelines.length > 0 ? (
+                      <ul className="list-disc pl-5 space-y-2">
+                        {campaign.requirements.contentGuidelines
+                          .filter((_, index) => {
+                            // If content type is both, assume second half of guidelines are for repurposed
+                            if (campaignContentType.toLowerCase() === 'both') {
+                              return index >= Math.ceil((campaign.requirements?.contentGuidelines?.length || 0) / 2);
+                            }
+                            return true; // If content type is repurposed, show all guidelines
+                          })
+                          .map((guideline: string, index: number) => (
+                            <li key={index} className="text-white">{guideline}</li>
+                          ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-gray-500">No content guidelines specified</p>
+                    )}
+                  </div>
+                )}
+              </div>
+              
+              {/* Campaign Brief */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {campaign.brief?.original || campaignContentType.toLowerCase() === 'original' || campaignContentType.toLowerCase() === 'both' ? (
+                  <div className="p-5 bg-black/40 rounded-lg border border-gray-800/60">
+                    <h4 className="text-base font-medium text-white mb-3">Original Content Brief</h4>
+                    <div className="prose prose-sm prose-invert max-w-none">
+                      {campaign.brief?.original ? (
+                        <p className="text-gray-300 whitespace-pre-line">{campaign.brief.original}</p>
+                      ) : (
+                        <p className="text-gray-500">No brief provided</p>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+                
+                {campaign.brief?.repurposed || campaignContentType.toLowerCase() === 'repurposed' || campaignContentType.toLowerCase() === 'both' ? (
+                  <div className="p-5 bg-black/40 rounded-lg border border-gray-800/60">
+                    <h4 className="text-base font-medium text-white mb-3">Repurposed Content Brief</h4>
+                    <div className="prose prose-sm prose-invert max-w-none">
+                      {campaign.brief?.repurposed ? (
+                        <p className="text-gray-300 whitespace-pre-line">{campaign.brief.repurposed}</p>
+                      ) : (
+                        <p className="text-gray-500">No brief provided</p>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+            
+            {/* Estimated Performance */}
+            <div className="bg-gray-900/30 rounded-xl p-6 border border-gray-800">
+              <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                <TrendingUp className="h-6 w-6 text-purple-400" />
+                Estimated Performance
+              </h3>
+              
+              {campaign.requirements?.view_estimates ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="p-5 bg-black/40 rounded-lg border border-gray-800/60 text-center">
+                    <Eye className="h-6 w-6 text-white mx-auto mb-2" />
+                    <h4 className="text-sm text-gray-400 mb-1">Total Estimated Views</h4>
+                    <p className="text-2xl font-bold text-white">{formatNumber(campaign.requirements.view_estimates.total)}</p>
+                  </div>
+                  
+                  {(campaignContentType.toLowerCase() === 'original' || campaignContentType.toLowerCase() === 'both') && (
+                    <div className="p-5 bg-black/40 rounded-lg border border-gray-800/60 text-center">
+                      <Video className="h-6 w-6 text-green-400 mx-auto mb-2" />
+                      <h4 className="text-sm text-gray-400 mb-1">Original Content Views</h4>
+                      <p className="text-2xl font-bold text-green-400">{formatNumber(campaign.requirements.view_estimates.original)}</p>
+                      {campaign.requirements.view_estimates.total > 0 && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          {Math.round((campaign.requirements.view_estimates.original / campaign.requirements.view_estimates.total) * 100)}% of total
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  
+                  {(campaignContentType.toLowerCase() === 'repurposed' || campaignContentType.toLowerCase() === 'both') && (
+                    <div className="p-5 bg-black/40 rounded-lg border border-gray-800/60 text-center">
+                      <Share2 className="h-6 w-6 text-blue-400 mx-auto mb-2" />
+                      <h4 className="text-sm text-gray-400 mb-1">Repurposed Content Views</h4>
+                      <p className="text-2xl font-bold text-blue-400">{formatNumber(campaign.requirements.view_estimates.repurposed)}</p>
+                      {campaign.requirements.view_estimates.total > 0 && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          {Math.round((campaign.requirements.view_estimates.repurposed / campaign.requirements.view_estimates.total) * 100)}% of total
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-gray-500">No view estimates available</p>
+              )}
+            </div>
+
+            {/* Footer Actions */}
+            <div className="flex justify-end gap-3 mt-8">
+              <button
+                onClick={onClose}
+                className="px-5 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-white text-sm transition-colors"
+              >
+                Close
+              </button>
+              {onEdit && (
+                <button
+                  onClick={() => onEdit(campaign)}
+                  className="px-5 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-white text-sm transition-colors flex items-center gap-2"
+                >
+                  <Edit className="h-4 w-4" />
+                  Edit Campaign
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Account Selection Modal */}
+      <AnimatePresence>
+        {showAccountSelection && (
+          <div className="fixed inset-0 bg-black bg-opacity-80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <motion.div
+              className="bg-black/40 border border-gray-800 rounded-lg p-6 w-full max-w-md"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+            >
+              <h3 className="text-xl font-bold mb-4">Select Account</h3>
+              <div className="space-y-4">
+                {campaign.requirements.platforms.map((platform: string) => {
+                  const accounts = connectedAccounts[platform.toLowerCase() as keyof typeof connectedAccounts] || [];
+                  return (
+                    <div key={platform} className="space-y-2">
+                      <div className="font-medium flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                        {platform === 'Instagram' && <Instagram className="h-5 w-5 text-pink-500" />}
+                        {platform === 'YouTube' && <Youtube className="h-5 w-5 text-red-500" />}
+                        {platform === 'TikTok' && (
+                          <svg className="h-5 w-5 text-cyan-400" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z" />
+                          </svg>
+                        )}
+                        {platform}
+                        </div>
+                      </div>
+                      {accounts.length > 0 ? (
+                        accounts.map(account => (
+                          <div
+                            key={account.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAccountSelect(
+                                platform.toLowerCase(), 
+                                account.id,
+                                selectedAccounts[platform.toLowerCase()]?.accountIds?.includes(account.id) || false
+                              );
+                            }}
+                            className={`w-full p-4 border rounded-lg transition-colors text-left cursor-pointer ${
+                              selectedAccounts[platform.toLowerCase()]?.accountIds?.includes(account.id)
+                                ? 'border-red-500 bg-red-900/10'
+                                : 'border-gray-700 hover:border-red-500 hover:bg-red-900/10'
+                            }`}
+                          >
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">@{account.username}</span>
+                                {account.isVerified && (
+                                  <span className="px-2 py-0.5 bg-blue-900/20 text-blue-400 text-xs rounded-full">
+                                    Verified
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-sm text-gray-400">{account.followers} followers</span>
+                            </div>
+                            {selectedAccounts[platform.toLowerCase()]?.accountIds?.includes(account.id) && (
+                              <div className="flex flex-col gap-2 mt-3">
+                                <p className="text-sm text-gray-400">Content type for this account:</p>
+                                {(campaign.contentType === 'both' || campaign.contentType === 'original') && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleContentTypeSelect(platform.toLowerCase(), account.id, 'original');
+                                    }}
+                                    className={`px-3 py-1 rounded-lg text-sm transition-colors ${
+                                      selectedAccounts[platform.toLowerCase()]?.accountTypes[account.id] === 'original'
+                                        ? 'bg-green-900/20 text-green-400 border border-green-500'
+                                        : 'border border-gray-700 hover:border-green-500'
+                                    }`}
+                                  >Original</button>
+                                )}
+                                {(campaign.contentType === 'both' || campaign.contentType === 'repurposed') && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleContentTypeSelect(platform.toLowerCase(), account.id, 'repurposed');
+                                    }}
+                                    className={`px-3 py-1 rounded-lg text-sm transition-colors ${
+                                      selectedAccounts[platform.toLowerCase()]?.accountTypes[account.id] === 'repurposed'
+                                        ? 'bg-blue-900/20 text-blue-400 border border-blue-500'
+                                        : 'border border-gray-700 hover:border-blue-500'
+                                    }`}
+                                  >Repurposed</button>
+                                )}
+                              </div>
+                            )}
+                          </div>  
+                        ))
+                      ) : (
+                        <div className="p-4 border border-gray-700 rounded-lg text-center">
+                          <p className="text-gray-400 mb-2">No accounts connected</p>
+                          <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm">
+                            Connect {platform}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex justify-end mt-6">
+                <button
+                  onClick={handleSubmitJoin}
+                  className="px-6 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-white font-medium ml-4"
+                >
+                  Continue
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      
+      {/* Confirmation Step */}
+      <AnimatePresence>
+        {showConfirmation && (
+          <div className="fixed inset-0 bg-black bg-opacity-80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <motion.div
+              className="bg-black/40 border border-gray-800 rounded-lg p-6 w-full max-w-md"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+            >
+              <h3 className="text-xl font-bold mb-4">Confirm Campaign Join</h3>
+              
+              <div className="space-y-4 mb-6">
+                <div className="p-4 bg-black/20 border border-gray-700 rounded-lg">
+                  <h4 className="font-medium mb-2">Selected Accounts</h4>
+                  {Object.entries(selectedAccounts).map(([platform, account]) => (
+                    <div key={platform} className="flex items-center justify-between py-2">
+                      <div>
+                        <p className="font-medium capitalize">{platform}</p>
+                        <div className="space-y-1">
+                          {account.accountIds.map(id => {
+                            const accountInfo = connectedAccounts[platform as keyof typeof connectedAccounts]
+                              ?.find(a => a.id === id);
+                            const contentType = account.accountTypes[id];
+                            return (
+                              <div key={id} className="flex items-center justify-between">
+                                <p className="text-sm text-gray-400">
+                                  @{accountInfo?.username}
+                                </p>
+                                <span className={`px-2 py-1 text-xs rounded-full ${
+                                  contentType === 'original'
+                                    ? 'bg-green-900/20 text-green-400 border border-green-500'
+                                    : 'bg-blue-900/20 text-blue-400 border border-blue-500'
+                                }`}>
+                                  {contentType}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="flex items-start gap-3">
+                  <div className="mt-1">
+                    <input
+                      type="checkbox"
+                      id="terms"
+                      checked={termsAccepted}
+                      onChange={(e) => setTermsAccepted(e.target.checked)}
+                      className="rounded border-gray-700 text-red-500 focus:ring-red-500"
+                    />
+                  </div>
+                  <label htmlFor="terms" className="text-sm text-gray-300">
+                    I have read and agree to follow all campaign requirements, including content guidelines,
+                    hashtag usage, and minimum view requirements. I understand that payment is based on
+                    views and requires meeting the minimum threshold of {campaign.requirements.minViewsForPayout} views.
+                  </label>
+                </div>
+                
+                {error && (
+                  <div className="p-3 bg-red-900/20 border border-red-500 rounded-lg">
+                    <div className="flex items-center gap-2 text-red-400">
+                      <AlertCircle className="h-5 w-5" />
+                      <p>{error}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowConfirmation(false)}
+                  className="px-4 py-2 border border-gray-700 rounded-lg hover:bg-white/5"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={handleConfirmJoin}
+                  className="px-6 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-white font-medium"
+                >
+                  Join Campaign
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Reject Dialog */}
+      {showRejectDialog && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+          <div className="bg-black/40 border border-gray-800 rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-xl font-bold mb-4">Reject Campaign</h3>
+            
+            <div className="mb-4">
+              <label className="block text-sm text-gray-400 mb-2">
+                Reason for Rejection
+              </label>
+              <textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                className="w-full h-32 p-3 bg-black/40 border border-gray-700 rounded-lg"
+                placeholder="Provide detailed feedback for the brand..."
+              />
+            </div>
+            
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowRejectDialog(false);
+                  setRejectReason('');
+                }}
+                className="px-4 py-2 border border-gray-700 rounded-lg hover:bg-white/5"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (rejectReason.trim()) {
+                    onReject?.(campaign as Campaign, rejectReason);
+                    setShowRejectDialog(false);
+                    setRejectReason('');
+                  }
+                }}
+                disabled={!rejectReason.trim()}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg disabled:opacity-50"
+              >
+                Confirm Rejection
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default CampaignDetailModal;

@@ -1,0 +1,44 @@
+{
+  "name": "create-os-react",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@radix-ui/react-tabs": "^1.1.3",
+    "@stripe/stripe-js": "^2.4.0",
+    "@supabase/ssr": "^0.6.1",
+    "@supabase/supabase-js": "^2.49.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "dotenv": "^16.4.7",
+    "framer-motion": "^11.0.5",
+    "instagram-private-api": "^1.45.3",
+    "lucide-react": "^0.323.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-error-boundary": "^5.0.0",
+    "react-hot-toast": "^2.5.2",
+    "react-router-dom": "^6.22.1",
+    "recharts": "^2.12.0",
+    "sonner": "^2.0.2",
+    "stripe": "^14.14.0",
+    "tailwind-merge": "^3.2.0",
+    "twitter-api-v2": "^1.16.0",
+    "youtube-api": "^3.0.1"
+  },
+  "devDependencies": {
+    "@types/react": "18.2.57",
+    "@types/react-dom": "18.2.19",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.17",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.1",
+    "typescript": "5.3.3",
+    "vite": "^5.1.3"
+  }
+}
