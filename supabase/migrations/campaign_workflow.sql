@@ -235,8 +235,8 @@ DECLARE
 BEGIN
   -- Check if the campaign is in an appropriate status
   SELECT status INTO campaign_status 
-  FROM campaigns 
-  WHERE id = campaign_id;
+  FROM public.campaigns
+  WHERE id = join_campaign.campaign_id;
   
   IF campaign_status NOT IN ('approved', 'active') THEN
     RAISE EXCEPTION 'Cannot join campaign that is not approved or active';
@@ -244,9 +244,9 @@ BEGIN
   
   -- Get creator ID from user ID
   SELECT c.id INTO creator_id
-  FROM creators c
-  JOIN profiles p ON c.profile_id = p.id
-  WHERE p.user_id = user_id;
+  FROM public.creators c
+  JOIN public.profiles p ON c.profile_id = p.id
+  WHERE p.user_id = join_campaign.user_id;
   
   IF creator_id IS NULL THEN
     RAISE EXCEPTION 'Creator profile not found for this user';
@@ -254,7 +254,7 @@ BEGIN
   
   -- Check if an application already exists
   SELECT EXISTS (
-    SELECT 1 FROM campaign_creators
+    SELECT 1 FROM public.campaign_creators
     WHERE campaign_id = join_campaign.campaign_id
     AND creator_id = join_campaign.creator_id
   ) INTO application_exists;
@@ -265,7 +265,7 @@ BEGIN
   
   -- Create the application
   RETURN QUERY
-  INSERT INTO campaign_creators (
+  INSERT INTO public.campaign_creators (
     campaign_id,
     creator_id,
     status,
@@ -273,9 +273,9 @@ BEGIN
     joined_at
   )
   VALUES (
-    campaign_id,
+    join_campaign.campaign_id,
     creator_id,
-    'applied',
+    'active',
     platforms,
     NOW()
   )

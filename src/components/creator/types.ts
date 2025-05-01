@@ -22,6 +22,7 @@ export interface Campaign {
       original?: string;
       repurposed?: string;
     };
+    hashtags?: string[];
   };
   platforms?: string[];
   creatorCount?: number;

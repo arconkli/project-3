@@ -225,10 +225,17 @@ export const getEarnings = async (
 
 // Get available campaigns
 export const getAvailableCampaigns = async (
+  userId: string,
   existingCampaignIds: string[],
   options: QueryOptions = {}
 ): Promise<QueryResult<any[]>> => {
   try {
+    // Log the received arguments for debugging
+    console.log(`[getAvailableCampaigns] Called with userId: ${userId}, existingCampaignIds:`, existingCampaignIds);
+    
+    // Ensure existingCampaignIds is treated as an array
+    const campaignIdsToExclude = Array.isArray(existingCampaignIds) ? existingCampaignIds : [];
+    
     const result = await withRetry(
       async () => {
         let query = supabase
@@ -252,8 +259,10 @@ export const getAvailableCampaigns = async (
           `)
           .eq('status', 'active');
 
-        if (existingCampaignIds.length > 0) {
-          query = query.not('id', 'in', `(${existingCampaignIds.join(',')})`);
+        // Use the validated array
+        if (campaignIdsToExclude.length > 0) {
+          console.log(`[getAvailableCampaigns] Excluding IDs: ${campaignIdsToExclude.join(',')}`);
+          query = query.not('id', 'in', `(${campaignIdsToExclude.join(',')})`);
         }
 
         if (options.signal) query.abortSignal(options.signal);
@@ -265,6 +274,7 @@ export const getAvailableCampaigns = async (
         );
 
         if (error) throw error;
+        console.log(`[getAvailableCampaigns] Fetched ${data?.length || 0} available campaigns.`);
         return data || [];
       },
       options.retries || 2
@@ -273,6 +283,7 @@ export const getAvailableCampaigns = async (
     return { data: result, error: null };
   } catch (error) {
     console.error('Error fetching available campaigns:', error);
+    // Keep mock data for resilience during development/debugging
     return {
       data: [{
         id: 'mock-available-1',
@@ -280,16 +291,16 @@ export const getAvailableCampaigns = async (
         status: 'active',
         content_type: 'both',
         end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        requirements: JSON.stringify({
+        requirements: { // Assuming requirements is an object, not stringified JSON
           platforms: ['TikTok', 'Instagram'],
           contentGuidelines: ['Sample guideline 1', 'Sample guideline 2'],
           payoutRate: { original: '$50 per 10K views', repurposed: '$25 per 10K views' }
-        }),
-        brief: JSON.stringify({
+        },
+        brief: { // Assuming brief is an object
           original: 'This is a sample brief for original content.',
           repurposed: 'This is a sample brief for repurposed content.'
-        }),
-        brands: { name: 'Sample Brand' }
+        },
+        brands: { name: 'Sample Brand' } // Match the alias used in select
       }],
       error: error as Error
     };
@@ -327,5 +338,71 @@ export const getCampaignMetrics = async (
   } catch (error) {
     console.error('Error fetching campaign metrics:', error);
     return { data: null, error: error as Error };
+  }
+};
+
+// Get campaigns a creator has actively joined
+export const getActiveCreatorCampaigns = async (
+  userId: string,
+  options: QueryOptions = {}
+): Promise<QueryResult<any[]>> => {
+  try {
+    console.log(`[OptimizedQueries] Fetching active campaigns for creator: ${userId}`);
+    const result = await withRetry(
+      async () => {
+        const query = supabase
+          .from('campaign_creators')
+          .select(`
+            status,
+            joined_at,
+            platforms,
+            campaign:campaign_id (
+              id,
+              title,
+              status,
+              start_date,
+              end_date,
+              content_type,
+              requirements,
+              brief,
+              brand:brands (name)
+            )
+          `)
+          .eq('creator_id', userId)
+          .eq('status', 'active') // Filter by active status in campaign_creators
+          .order('joined_at', { ascending: false });
+
+        if (options.signal) query.abortSignal(options.signal);
+
+        const { data, error } = await withTimeout(
+          query,
+          options.timeout || 15000,
+          'Active creator campaigns query timed out'
+        );
+
+        if (error) {
+          // Log specific errors like RLS failures
+          if (error.code === '42501') {
+            console.error('RLS Error fetching active creator campaigns:', error.message);
+          } else {
+            console.error('DB Error fetching active creator campaigns:', error);
+          }
+          throw error;
+        }
+        
+        console.log(`[OptimizedQueries] Found ${data?.length || 0} active campaigns for creator ${userId}.`);
+        // console.log('[OptimizedQueries] Raw active campaigns data:', data); // Optional detailed log
+        return data || [];
+      },
+      options.retries || 2
+    );
+
+    return { data: result, error: null };
+  } catch (error) {
+    console.error('Error fetching active creator campaigns:', error);
+    return {
+      data: [],
+      error: error as Error
+    };
   }
 }; 

@@ -35,14 +35,14 @@ import useProtectedAction from '@/hooks/useProtectedAction';
 import { toast } from 'react-hot-toast';
 import {
   getPlatformConnections,
-  getActiveTransactions,
+  getActiveCreatorCampaigns,
   getCompletedTransactions,
   getEarnings,
   getAvailableCampaigns,
   getCampaignMetrics
 } from '@/lib/queries/optimizedQueries';
 import {
-  getUserProfileByUserId,
+  getUserProfileByUserId as fetchUserProfile,
   getDashboardMetrics,
   getActiveCampaigns,
   getCompletedCampaigns,
@@ -55,16 +55,15 @@ interface CreatorMetrics extends CreatorMetricsType {}
 interface Campaign {
   id: string;
   title: string;
-  brand: string;
+  brand: { name?: string };
   status: 'active' | 'completed' | 'pending';
   views: number;
   earnings: number;
   deadline: string;
-  requirements: {
-    platforms: string[];
-    contentGuidelines: string[];
-  };
-  endDate: string;
+  requirements: any;
+  startDate?: string | Date;
+  endDate?: string | Date;
+  brief?: { original?: string; repurposed?: string };
   pendingPayout: number;
   earned: number;
   contentType?: 'original' | 'repurposed' | 'both';
@@ -552,28 +551,77 @@ const ErrorDisplay = ({ message, onRetry }: { message: string, onRetry?: () => v
   </div>
 );
 
-// Helper function to transform transaction data with nested campaign details into Campaign type
+// Adjusted transform function for data from getActiveCreatorCampaigns
+const transformActiveCampaignData = (activeData: any[]): Campaign[] => {
+  if (!activeData) return [];
+  console.log('[transformActiveCampaignData] Transforming active data:', activeData);
+  return activeData.map(item => {
+    const campaignData = item.campaign; // Access the nested campaign data
+    const brandData = campaignData?.brand; // Access nested brand data
+
+    if (!campaignData) {
+      console.warn('[transformActiveCampaignData] Skipping item due to missing nested campaign data:', item);
+      return null; // Skip if essential campaign data is missing
+    }
+
+    // Helper to safely access potentially missing requirements fields
+    const getReqField = (field: string, fallback: any = null) => campaignData.requirements?.[field] ?? fallback;
+
+    return {
+      id: campaignData.id,
+      title: campaignData.title || 'Unknown Campaign',
+      brand: brandData ? { name: brandData.name } : { name: 'Unknown Brand' }, // Corrected brand mapping
+      status: 'active',
+      views: campaignData.metrics?.totalViews || item.metrics?.views || 0, // Use item metrics as fallback?
+      earnings: item.metrics?.earned || 0, // Use item metrics?
+      // Map dates correctly
+      startDate: campaignData.start_date, // Map start_date
+      endDate: campaignData.end_date,     // Map end_date
+      // Map brief
+      brief: campaignData.brief, // Map brief object
+      // Pass requirements through, maybe extract platforms separately if needed elsewhere
+      requirements: campaignData.requirements || {},
+      pendingPayout: item.metrics?.pendingPayout || 0, // Use item metrics?
+      earned: item.metrics?.earned || 0,           // Use item metrics?
+      contentType: campaignData.content_type || 'both',
+      platforms: getReqField('platforms', []), // Extract platforms safely
+      // posts: transformPostsData(campaignData.posts) // Keep commented out
+      // Remove deadline if not needed
+      deadline: campaignData.end_date || '', // Or remove this line
+    };
+  }).filter((c): c is Campaign => c !== null); // Filter out null entries and assert type
+};
+
+// Keep the existing transform function for completed *transactions*
 const transformTransactionData = (transactions: any[]): Campaign[] => {
   if (!transactions) return [];
+  console.log('[transformTransactionData] Transforming completed transaction data:', transactions);
   return transactions.map(t => {
     const campaignData = t.campaigns; // Access the nested campaign data
+    const brandData = campaignData?.brands; // Access nested brand data
+    
+    if (!campaignData) {
+      console.warn('[transformTransactionData] Skipping item due to missing nested campaign data:', t);
+      return null; // Skip if essential campaign data is missing
+    }
+
     return {
       id: campaignData?.id || t.campaign_id,
       title: campaignData?.title || 'Unknown Campaign',
-      brand: campaignData?.brands?.name || 'Unknown Brand',
-      status: campaignData?.status || t.status,
+      brand: brandData?.name || 'Unknown Brand',
+      status: 'completed', // We know these are from completed transactions
       views: campaignData?.metrics?.totalViews || 0, // Assuming metrics might be nested
       earnings: t.amount || 0, // Use transaction amount for earnings/earned
       deadline: campaignData?.end_date || '',
       requirements: campaignData?.requirements || { platforms: [], contentGuidelines: [] },
       endDate: campaignData?.end_date || '',
-      pendingPayout: t.status === 'active' ? (t.amount || 0) : 0, // Simplified pending logic
-      earned: t.status === 'completed' ? (t.amount || 0) : 0, // Simplified earned logic
+      pendingPayout: 0, // Completed campaigns have no pending payout from these transactions
+      earned: t.amount || 0, 
       contentType: campaignData?.content_type || 'both',
       platforms: campaignData?.requirements?.platforms || [],
       // posts: transformPostsData(campaignData?.posts) // Add post transformation if needed
     };
-  }).filter(c => c.id); // Filter out entries without a valid ID
+  }).filter((c): c is Campaign => c !== null); // Filter out null entries and assert type
 };
 
 // Define props type for CreatorDashboard
@@ -664,11 +712,10 @@ export const CreatorDashboard = ({ user: userProp, signOut: signOutProp, userId:
     }
 
     try {
-      // Fetch profile first
-      const profilePromise = getUserProfileByUserId(userId);
+      const profilePromise = fetchUserProfile(userId);
 
-      // Setup promises for concurrent fetching
-      const activeTransactionsPromise = getActiveTransactions(userId);
+      // Setup promises for concurrent fetching - use new function for active campaigns
+      const activeCampaignsPromise = getActiveCreatorCampaigns(userId);
       const completedTransactionsPromise = getCompletedTransactions(userId);
       const earningsPromise = getEarnings(userId);
 
@@ -693,7 +740,7 @@ export const CreatorDashboard = ({ user: userProp, signOut: signOutProp, userId:
 
       // Await concurrent fetches
       const [ activeResult, completedResult, earningsResult ] = await Promise.allSettled([
-        activeTransactionsPromise,
+        activeCampaignsPromise,
         completedTransactionsPromise,
         earningsPromise
       ]);
@@ -701,24 +748,24 @@ export const CreatorDashboard = ({ user: userProp, signOut: signOutProp, userId:
       let activeCampaignIds: string[] = [];
       let completedCampaignIds: string[] = [];
 
-      // Process active transactions
+      // Process active campaigns (using new function result and transformer)
       if (activeResult.status === 'fulfilled' && !activeResult.value.error) {
-        console.log("Fetched active transactions:", activeResult.value.data);
-        const transformedActive = transformTransactionData(activeResult.value.data);
+        console.log("Fetched active creator campaigns data:", activeResult.value.data); // Log raw data
+        const transformedActive = transformActiveCampaignData(activeResult.value.data); // Use new transformer
+        console.log("Transformed active campaigns:", transformedActive);
         setCampaigns(transformedActive);
         activeCampaignIds = transformedActive.map(c => c.id);
-        // console.log('Active Campaign IDs:', activeCampaignIds); // Removed log
       } else {
-        console.error("Error fetching active campaigns/transactions:", activeResult.status === 'rejected' ? activeResult.reason : activeResult.value.error);
+        console.error("Error fetching active creator campaigns:", activeResult.status === 'rejected' ? activeResult.reason : activeResult.value.error);
       }
 
       // Process completed transactions
       if (completedResult.status === 'fulfilled' && !completedResult.value.error) {
         console.log("Fetched completed transactions:", completedResult.value.data);
-        const transformedCompleted = transformTransactionData(completedResult.value.data);
+        const transformedCompleted = transformTransactionData(completedResult.value.data); // Use existing transformer
         setCompletedCampaigns(transformedCompleted);
-        completedCampaignIds = transformedCompleted.map(c => c.id);
-        // console.log('Completed Campaign IDs:', completedCampaignIds); // Removed log
+        // Get completed campaign IDs from the *nested* campaign data within transactions
+        completedCampaignIds = transformedCompleted.map(c => c.id); 
       } else {
         console.error("Error fetching completed campaigns/transactions:", completedResult.status === 'rejected' ? completedResult.reason : completedResult.value.error);
       }
@@ -735,9 +782,9 @@ export const CreatorDashboard = ({ user: userProp, signOut: signOutProp, userId:
       // Fetch available campaigns, excluding active/completed ones
       try {
         const existingIds = [...new Set([...activeCampaignIds, ...completedCampaignIds])];
-        // console.log(`Fetching available campaigns, excluding IDs:`, existingIds); // Removed log
-        const { data: availableData, error: availableError } = await getAvailableCampaigns(existingIds);
-        // console.log('Raw data from getAvailableCampaigns:', availableData); // Removed log
+        console.log(`Fetching available campaigns, excluding IDs:`, existingIds); // Log excluded IDs
+        const { data: availableData, error: availableError } = await getAvailableCampaigns(userId, existingIds); // Pass userId and excluded IDs
+        
         if (availableError) throw availableError;
         
         // Transform the fetched available campaigns
@@ -844,6 +891,9 @@ export const CreatorDashboard = ({ user: userProp, signOut: signOutProp, userId:
       }
     };
   }, []); // Runs only on unmount
+
+  // Debugging log added
+  console.log(`[CreatorDashboard Render] selectedCampaignType: ${selectedCampaignType}, selectedCampaign ID: ${selectedCampaign?.id}`);
 
   // Prepare content based on loading, error, and auth state
   let content: React.ReactNode;
@@ -1081,22 +1131,45 @@ export const CreatorDashboard = ({ user: userProp, signOut: signOutProp, userId:
               </div>
             </section>
           )}
+
+          {activeView === 'analytics' && (
+            <AnalyticsView userId={userId} />
+          )}
+
+          {activeView === 'payments' && (
+            <PaymentsView userId={userId} />
+          )}
+
+          {activeView === 'settings' && (
+            <SettingsView userProfile={userProfile} onUpdate={() => loadDashboardData()} />
+          )}
         </main>
         
-        {/* Campaign Details Modal */}
-        {selectedCampaign && (
+        {/* Campaign Details Modal - Conditionally render Active or Available */}
+        {selectedCampaign && selectedCampaignType === 'active' && (
+          <ActiveCampaignDetailModal
+            campaign={selectedCampaign as Campaign} // Cast to Campaign for active
+            onClose={() => {
+              setSelectedCampaign(null);
+              setSelectedCampaignType(null);
+            }}
+          />
+        )}
+
+        {selectedCampaign && selectedCampaignType === 'available' && (
+          // Use the shared modal for available campaigns as requested
           <CampaignDetailModal
-            campaign={selectedCampaign}
+            campaign={selectedCampaign} // No need to cast here, shared handles both
             userType="creator"
             onClose={() => {
               setSelectedCampaign(null);
               setSelectedCampaignType(null);
             }}
             onJoin={() => {
-              if (selectedCampaignType === 'available') {
-                setJoiningCampaign(selectedCampaign as AvailableCampaign);
-                setSelectedCampaign(null);
-              }
+              // Trigger the Join flow for available campaigns
+              setJoiningCampaign(selectedCampaign as AvailableCampaign);
+              setSelectedCampaign(null); // Close the detail modal
+              setSelectedCampaignType(null);
             }}
           />
         )}

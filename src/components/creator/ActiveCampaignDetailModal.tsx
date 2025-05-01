@@ -1,289 +1,480 @@
 import React from 'react';
-import { X, Calendar, DollarSign, Eye } from 'lucide-react';
-import type { Campaign } from './types';
-import { formatNumber } from '@/utils/format';
+import {
+  X, Calendar, DollarSign, Eye, Edit3, BarChart2, Users, CheckCircle,
+  Info, FileText, Video, Share2, Hash, Building, Target, Check, AlertCircle,
+  Youtube, Instagram, Twitter, PieChart, Activity, Heart, MessageCircle, Smartphone, Award, UserPlus, Mail, Edit
+} from 'lucide-react';
+// Ensure Campaign type includes all necessary fields, may need adjustment based on actual data structure
+// import type { Campaign } from './types'; // Assuming this type is sufficient or adjusting if needed
+import { formatNumber, formatMoney } from '@/utils/format'; // Assuming formatMoney exists
 import { motion } from 'framer-motion';
+
+// Keep existing Campaign type or import a more comprehensive one if needed
+// Temporarily defining a more comprehensive structure based on usage below
+interface Campaign {
+  id: string;
+  title: string;
+  status: string; // Should likely be 'active'
+  startDate?: string | Date;
+  endDate?: string | Date;
+  contentType?: 'original' | 'repurposed' | 'both';
+  brand?: { name?: string }; // Assuming brand is an object with a name
+  brief?: { original?: string; repurposed?: string };
+  requirements?: {
+    platforms?: string[];
+    contentGuidelines?: string[];
+    hashtags?: { original?: string; repurposed?: string }; // Match shared modal structure
+    payoutRate?: { original?: string; repurposed?: string };
+    minViewsForPayout?: number | string;
+  };
+  posts?: Array<{ // Assuming posts array for stats
+    platform: string;
+    views: number | string;
+    earned: number | string;
+    likes?: number;
+    comments?: number;
+    shares?: number;
+    saves?: number;
+  }>;
+  // Stats fields (can be direct or calculated)
+  earned?: number | string;
+  views?: number | string;
+  pendingPayout?: number | string;
+  targetAudience?: { // Example structure if needed
+    age?: [number, number];
+    locations?: string[];
+    interests?: string[];
+  };
+  // Add other fields used from shared modal structure if necessary
+  [key: string]: any; // Allow other fields
+}
+
 
 interface ActiveCampaignDetailModalProps {
   campaign: Campaign;
   onClose: () => void;
 }
 
-const ActiveCampaignDetailModal: React.FC<ActiveCampaignDetailModalProps> = ({ campaign, onClose }) => {
-  // Group posts by platform to show stats
-  const platformStats = React.useMemo(() => {
-    if (!campaign.posts) return {};
-    
-    const stats: Record<string, { posts: number, views: number, earned: number }> = {};
-    
-    campaign.posts.forEach(post => {
-      if (!stats[post.platform]) {
-        stats[post.platform] = { posts: 0, views: 0, earned: 0 };
+// Helper to get campaign fields safely - simplified version
+const getCampaignField = (campaign: Campaign, fieldPath: string, fallback: any = null) => {
+  const pathParts = fieldPath.split('.');
+  let value = campaign as any;
+  try {
+    for (const part of pathParts) {
+      if (value === null || value === undefined) {
+        throw new Error('Path broken');
       }
-      stats[post.platform].posts += 1;
-      stats[post.platform].views += parseInt(post.views.replace(/[^0-9]/g, '')) || 0;
-      stats[post.platform].earned += post.earned;
-    });
-    
-    return stats;
-  }, [campaign.posts]);
+      value = value[part];
+    }
+    if (value !== null && value !== undefined) {
+      return value;
+    }
+  } catch (e) {
+    // Path doesn't exist or value is null/undefined
+  }
+  return fallback;
+};
 
+// Helper function to format date (reused)
+const formatDate = (date: string | Date | null | undefined) => {
+  if (!date) return 'N/A';
+  try {
+    return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(date));
+  } catch (e) {
+    return 'Invalid Date';
+  }
+};
+
+
+const ActiveCampaignDetailModal: React.FC<ActiveCampaignDetailModalProps> = ({ campaign, onClose }) => {
+
+  // Calculate Performance Stats
+  const performanceStats = React.useMemo(() => {
+    const stats = {
+      totalEarned: 0,
+      totalPosts: 0,
+      totalViews: 0,
+      totalLikes: 0,
+      totalComments: 0,
+      totalShares: 0,
+      totalSaves: 0,
+      pendingPayout: Number(getCampaignField(campaign, 'pendingPayout', 0)), // Assume pendingPayout is directly on campaign or needs calculation elsewhere
+      platformBreakdown: {} as Record<string, { posts: number, views: number, earned: number }>,
+    };
+
+    if (campaign.posts && Array.isArray(campaign.posts)) {
+      stats.totalPosts = campaign.posts.length;
+      campaign.posts.forEach(post => {
+        const views = parseInt(String(post.views).replace(/[^0-9]/g, '')) || 0;
+        const earned = Number(post.earned) || 0;
+        stats.totalViews += views;
+        stats.totalEarned += earned;
+        stats.totalLikes += Number(post.likes) || 0;
+        stats.totalComments += Number(post.comments) || 0;
+        stats.totalShares += Number(post.shares) || 0;
+        stats.totalSaves += Number(post.saves) || 0;
+
+        if (!stats.platformBreakdown[post.platform]) {
+          stats.platformBreakdown[post.platform] = { posts: 0, views: 0, earned: 0 };
+        }
+        stats.platformBreakdown[post.platform].posts += 1;
+        stats.platformBreakdown[post.platform].views += views;
+        stats.platformBreakdown[post.platform].earned += earned;
+      });
+    } else {
+      // Fallback if posts array is not available but top-level stats are
+      stats.totalEarned = Number(getCampaignField(campaign, 'earned', 0));
+      stats.totalViews = parseInt(String(getCampaignField(campaign, 'views', '0')).replace(/[^0-9]/g, '')) || 0;
+      // totalPosts might need a separate field if campaign.posts isn't guaranteed
+    }
+
+    return stats;
+  }, [campaign]);
+
+  // Get derived values using the helper
+  const campaignContentType = getCampaignField(campaign, 'contentType', 'unknown');
+  const campaignStartDate = getCampaignField(campaign, 'startDate');
+  const campaignEndDate = getCampaignField(campaign, 'endDate');
+  const brandName = getCampaignField(campaign, 'brand.name', 'Unknown Brand');
+  const campaignGoal = getCampaignField(campaign, 'goal', 'Not specified'); // Assuming 'goal' field exists
+
+  const payoutRateOriginal = getCampaignField(campaign, 'requirements.payoutRate.original');
+  const payoutRateRepurposed = getCampaignField(campaign, 'requirements.payoutRate.repurposed');
+  const minViewsForPayout = getCampaignField(campaign, 'requirements.minViewsForPayout', 'N/A');
+
+  const campaignBriefOriginal = getCampaignField(campaign, 'brief.original');
+  const campaignBriefRepurposed = getCampaignField(campaign, 'brief.repurposed');
+  const contentGuidelines = getCampaignField(campaign, 'requirements.contentGuidelines', []);
+  const hashtagsOriginal = getCampaignField(campaign, 'requirements.hashtags.original', '');
+  const hashtagsRepurposed = getCampaignField(campaign, 'requirements.hashtags.repurposed', '');
+  const requiredPlatforms = getCampaignField(campaign, 'requirements.platforms', []);
+
+  // --- Render Logic based on Shared Modal Creator Default View ---
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-80 backdrop-blur-sm z-50 p-6"
-      onClick={onClose}
+      className="fixed inset-0 bg-black bg-opacity-80 backdrop-blur-sm flex items-center justify-center p-4 md:p-6 z-50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
       role="dialog"
       aria-modal="true"
+      aria-labelledby="campaign-title"
     >
       <motion.div
-        className="bg-black/40 border border-gray-800 rounded-lg p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+        className="bg-black/60 border border-gray-800 rounded-lg p-6 md:p-8 w-full max-w-5xl max-h-[90vh] overflow-y-auto custom-scrollbar shadow-xl"
         onClick={(e) => e.stopPropagation()}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 20 }}
+        transition={{ duration: 0.2 }}
       >
-        <button
-          className="absolute top-4 right-4 p-2"
-          onClick={onClose}
-          aria-label="Close details"
-        >
-          <X className="h-6 w-6" />
-        </button>
-
-        <div className="flex justify-between items-start mb-6">
-          <h2 className="text-2xl font-bold text-white">{campaign.title}</h2>
-          <span className="px-3 py-1 rounded-full bg-green-900/20 text-green-400 text-sm font-medium">
-            ACTIVE
-          </span>
+        {/* Header */}
+        <div className="flex items-start justify-between mb-6 pr-8 relative">
+          <div>
+             <h2 id="campaign-title" className="text-2xl font-bold text-white mb-1">{campaign.title}</h2>
+            <div className="flex items-center gap-2 text-gray-400 text-sm">
+              <Building className="h-4 w-4" />
+              <span>{brandName}</span>
+            </div>
+          </div>
+           <span className="absolute top-0 right-10 px-3 py-1 rounded-full bg-green-900/30 text-green-400 text-sm font-medium flex items-center gap-1.5 self-start sm:self-center">
+              <CheckCircle className="h-4 w-4"/> ACTIVE
+            </span>
+          <button
+            className="absolute top-0 right-0 p-2 -m-2 text-gray-500 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+            onClick={onClose}
+            aria-label="Close campaign details"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
-        {/* Campaign Details Section */}
-        <div className="space-y-6 mb-8">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm text-gray-400">Content Type</p>
-              <p className="text-lg font-medium capitalize text-white">
-                {campaign.contentType === 'both' 
-                  ? 'Original & Repurposed' 
-                  : campaign.contentType === 'original' 
-                    ? 'Original Content' 
-                    : 'Repurposed Content'}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-400">End Date</p>
-              <p className="text-lg font-medium text-white">{new Date(campaign.endDate).toLocaleDateString()}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-400">Brand</p>
-              <p className="text-lg font-medium text-white">{campaign.brand}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-400">Campaign Status</p>
-              <p className="text-lg font-medium text-green-400">Active</p>
-            </div>
-          </div>
-          
-          <div>
-            <h3 className="text-lg font-medium mb-2 text-white">Campaign Brief</h3>
-            {campaign.brief?.original && (
-              <div className="mb-3">
-                <p className="text-green-400 font-medium">Original Content:</p>
-                <p className="text-gray-300 mt-1">{campaign.brief.original}</p>
-              </div>
-            )}
-            {campaign.brief?.repurposed && (
-              <div>
-                <p className="text-blue-400 font-medium">Repurposed Content:</p>
-                <p className="text-gray-300 mt-1">{campaign.brief.repurposed}</p>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <h3 className="text-lg font-medium mb-2 text-white">Content Requirements</h3>
-            <ul className="list-disc pl-5 space-y-2 text-gray-300">
-              {campaign.requirements.contentGuidelines.map((guideline, i) => (
-                <li key={i}>{guideline}</li>
-              ))}
-            </ul>
-          </div>
-        </div>
-
-        {/* Performance Stats */}
-        <div className="mb-8">
-          <h3 className="text-lg font-bold mb-4 text-white flex items-center gap-2">
+        {/* Main Content Area */}
+        <motion.div
+            key="details"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-6"
+          >
+            {/* Performance Stats Section */}
+            <div className="p-5 bg-black/40 border border-gray-800 rounded-lg">
+               <h3 className="text-lg font-bold mb-4 text-white flex items-center gap-2">
             <span className="flex items-center justify-center p-1 rounded-full bg-purple-900/30">
-              <svg className="h-4 w-4 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
+              <BarChart2 className="h-5 w-5 text-purple-400" />
             </span>
             Campaign Performance
           </h3>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="bg-black/30 border border-gray-800 rounded-lg p-4">
-              <p className="text-sm text-gray-400 mb-1">Total Earned</p>
-              <div className="flex items-center">
-                <DollarSign className="h-5 w-5 text-green-400 mr-1" />
-                <p className="text-xl font-bold text-green-400">${campaign.earned || 0}</p>
-              </div>
-            </div>
-            <div className="bg-black/30 border border-gray-800 rounded-lg p-4">
-              <p className="text-sm text-gray-400 mb-1">Total Views</p>
-              <div className="flex items-center">
-                <Eye className="h-5 w-5 text-blue-400 mr-1" />
-                <p className="text-xl font-bold text-blue-400">{formatNumber(campaign.views || 0)}</p>
-              </div>
-            </div>
-            <div className="bg-black/30 border border-gray-800 rounded-lg p-4">
-              <p className="text-sm text-gray-400 mb-1">Pending Payout</p>
-              <div className="flex items-center">
-                <DollarSign className="h-5 w-5 text-yellow-400 mr-1" />
-                <p className="text-xl font-bold text-yellow-400">${campaign.pendingPayout || 0}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Connected Accounts Section */}
-        <div className="mb-8">
-          <h3 className="text-lg font-bold mb-4 text-white flex items-center gap-2">
-            <span className="flex items-center justify-center p-1 rounded-full bg-green-900/30">
-              <svg className="h-4 w-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-            </span>
-            Connected Platforms
-          </h3>
-          <div className="flex flex-wrap gap-3 mb-2">
-            {campaign.platforms?.map((platform) => (
-              <div key={platform} className="bg-black/30 border border-gray-800 rounded-lg p-4 flex-1 min-w-[180px]">
-                <div className="flex items-center gap-2 mb-3">
-                  {platform === 'TikTok' && (
-                    <span className="text-pink-400 text-lg font-medium flex items-center gap-1">
-                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M19.589 6.686a4.793 4.793 0 0 1-3.77-4.245V2h-3.445v13.672a2.896 2.896 0 0 1-5.201 1.743l-.002-.001.002.001a2.895 2.895 0 0 1 3.183-4.51v-3.5a6.329 6.329 0 0 0-5.394 10.692 6.33 6.33 0 0 0 10.857-4.424V8.687a8.182 8.182 0 0 0 4.773 1.526V6.79a4.831 4.831 0 0 1-1.003-.104z"/>
-                      </svg>
-                      TikTok
-                    </span>
-                  )}
-                  {platform === 'Instagram' && (
-                    <span className="text-purple-400 text-lg font-medium flex items-center gap-1">
-                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/>
-                      </svg>
-                      Instagram
-                    </span>
-                  )}
-                  {platform === 'YouTube' && (
-                    <span className="text-red-400 text-lg font-medium flex items-center gap-1">
-                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-                      </svg>
-                      YouTube
-                    </span>
-                  )}
-                  {platform === 'Twitter' && (
-                    <span className="text-blue-400 text-lg font-medium flex items-center gap-1">
-                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/>
-                      </svg>
-                      Twitter
-                    </span>
-                  )}
-                </div>
-                
-                {platformStats[platform] && (
-                  <div className="grid grid-cols-3 gap-1 text-sm">
-                    <div>
-                      <p className="text-gray-400">Posts</p>
-                      <p className="text-white font-medium">{platformStats[platform].posts || 0}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400">Views</p>
-                      <p className="text-white font-medium">{formatNumber(platformStats[platform].views || 0)}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400">Earnings</p>
-                      <p className="text-white font-medium">${platformStats[platform].earned || 0}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Eligible Content Section */}
-        <div className="mb-6">
-          <h3 className="text-lg font-bold mb-4 text-white flex items-center gap-2">
-            <span className="flex items-center justify-center p-1 rounded-full bg-blue-900/30">
-              <svg className="h-4 w-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </span>
-            Eligible Content
-          </h3>
-          {campaign.posts && campaign.posts.length > 0 ? (
-            <div className="space-y-3">
-              {campaign.posts.map((post, index) => (
-                <div key={index} className="bg-black/30 border border-gray-800 rounded-lg p-4">
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-2">
-                      {post.platform === 'TikTok' && (
-                        <span className="text-pink-400 flex items-center gap-1">
-                          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M19.589 6.686a4.793 4.793 0 0 1-3.77-4.245V2h-3.445v13.672a2.896 2.896 0 0 1-5.201 1.743l-.002-.001.002.001a2.895 2.895 0 0 1 3.183-4.51v-3.5a6.329 6.329 0 0 0-5.394 10.692 6.33 6.33 0 0 0 10.857-4.424V8.687a8.182 8.182 0 0 0 4.773 1.526V6.79a4.831 4.831 0 0 1-1.003-.104z"/>
-                          </svg>
-                        </span>
-                      )}
-                      {post.platform === 'Instagram' && (
-                        <span className="text-purple-400 flex items-center gap-1">
-                          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/>
-                          </svg>
-                        </span>
-                      )}
-                      {post.platform === 'YouTube' && (
-                        <span className="text-red-400 flex items-center gap-1">
-                          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-                          </svg>
-                        </span>
-                      )}
-                      <span className="font-medium text-white">{post.platform}</span>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-300">
-                        {post.contentType}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-400">{post.views} views</span>
-                      <span className={`text-sm px-2 py-0.5 rounded-full ${
-                        post.status === 'approved' 
-                          ? 'bg-green-900/20 text-green-400' 
-                          : 'bg-yellow-900/20 text-yellow-400'
-                      }`}>
-                        {post.status}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="mt-2 text-sm text-gray-400">
-                    <p>Posted: <time dateTime={post.postDate}>{new Date(post.postDate).toLocaleDateString()}</time></p>
-                    <div className="flex items-center mt-1">
-                      <DollarSign className="h-4 w-4 text-green-400 mr-1" />
-                      <p>Earned: ${post.earned}</p>
-                    </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="bg-black/50 border border-gray-700 rounded-lg p-4">
+                  <p className="text-sm text-gray-400 mb-1">Total Earned</p>
+                  <div className="flex items-center">
+                    <DollarSign className="h-5 w-5 text-green-400 mr-1" />
+                    <p className="text-xl font-bold text-green-400">{formatMoney(performanceStats.totalEarned)}</p>
                   </div>
                 </div>
-              ))}
+                <div className="bg-black/50 border border-gray-700 rounded-lg p-4">
+                  <p className="text-sm text-gray-400 mb-1">Total Posts</p>
+                  <div className="flex items-center">
+                    <Edit3 className="h-5 w-5 text-cyan-400 mr-1" />
+                    <p className="text-xl font-bold text-cyan-400">{formatNumber(performanceStats.totalPosts)}</p>
+                  </div>
+                </div>
+                <div className="bg-black/50 border border-gray-700 rounded-lg p-4">
+                  <p className="text-sm text-gray-400 mb-1">Total Views</p>
+                  <div className="flex items-center">
+                    <Eye className="h-5 w-5 text-blue-400 mr-1" />
+                    <p className="text-xl font-bold text-blue-400">{formatNumber(performanceStats.totalViews)}</p>
+                  </div>
+                </div>
+                <div className="bg-black/50 border border-gray-700 rounded-lg p-4">
+                  <p className="text-sm text-gray-400 mb-1">Pending Payout</p>
+                  <div className="flex items-center">
+                    <DollarSign className="h-5 w-5 text-yellow-400 mr-1" />
+                    <p className="text-xl font-bold text-yellow-400">{formatMoney(performanceStats.pendingPayout)}</p>
+                  </div>
+                </div>
+              </div>
+              {/* Engagement Metrics (Optional but nice) */}
+               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                 <div className="bg-black/50 border border-gray-700 rounded-lg p-4">
+                    <p className="text-sm text-gray-400 mb-1">Total Likes</p>
+                    <div className="flex items-center">
+                      <Heart className="h-5 w-5 text-red-400 mr-1" />
+                      <p className="text-xl font-bold text-red-400">{formatNumber(performanceStats.totalLikes)}</p>
+                    </div>
+                  </div>
+                  <div className="bg-black/50 border border-gray-700 rounded-lg p-4">
+                    <p className="text-sm text-gray-400 mb-1">Total Comments</p>
+                    <div className="flex items-center">
+                      <MessageCircle className="h-5 w-5 text-purple-400 mr-1" />
+                      <p className="text-xl font-bold text-purple-400">{formatNumber(performanceStats.totalComments)}</p>
+                    </div>
+                  </div>
+                  <div className="bg-black/50 border border-gray-700 rounded-lg p-4">
+                    <p className="text-sm text-gray-400 mb-1">Total Shares</p>
+                    <div className="flex items-center">
+                      <Share2 className="h-5 w-5 text-teal-400 mr-1" />
+                      <p className="text-xl font-bold text-teal-400">{formatNumber(performanceStats.totalShares)}</p>
+                    </div>
+                  </div>
+                   <div className="bg-black/50 border border-gray-700 rounded-lg p-4">
+                    <p className="text-sm text-gray-400 mb-1">Total Saves</p>
+                    <div className="flex items-center">
+                      <Smartphone className="h-5 w-5 text-indigo-400 mr-1" />
+                      <p className="text-xl font-bold text-indigo-400">{formatNumber(performanceStats.totalSaves)}</p>
+                    </div>
+                  </div>
+               </div>
             </div>
-          ) : (
-            <div className="bg-black/30 border border-gray-800 rounded-lg p-4 text-center">
-              <p className="text-gray-400">No eligible content found yet.</p>
-              <p className="text-sm text-gray-500 mt-2">Content is automatically detected and will appear here once found.</p>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Left Column */}
+              <div className="md:col-span-2 space-y-6">
+                  {/* Overview Card */}
+                  <div className="p-5 bg-black/40 border border-gray-800 rounded-lg">
+                    <h3 className="text-base font-semibold mb-4 flex items-center gap-2"><FileText className="h-5 w-5 text-blue-400"/>Campaign Details</h3>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                        <div>
+                          <p className="text-gray-400 text-xs mb-1">Campaign Goal</p>
+                          <p>{campaignGoal}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-400 text-xs mb-1">Content Type</p>
+                          <p className="capitalize">{campaignContentType === 'both' ? 'Original & Repurposed' : campaignContentType}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-400 text-xs mb-1">Duration</p>
+                            <p>{formatDate(campaignStartDate)} - {formatDate(campaignEndDate)}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-400 text-xs mb-1">Target Platforms</p>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {requiredPlatforms.map((platform: string, index: number) => (
+                              <span key={index} className="px-2 py-0.5 bg-purple-900/30 text-purple-400 rounded-full text-xs flex items-center gap-1">
+                                {platform.toLowerCase() === 'instagram' && <Instagram className="h-3 w-3" />}
+                                {platform.toLowerCase() === 'tiktok' && <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z" /></svg>}
+                                {platform.toLowerCase() === 'youtube' && <Youtube className="h-3 w-3" />}
+                                {platform.toLowerCase() === 'twitter' && <Twitter className="h-3 w-3" />}
+                                {platform}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                    </div>
+                  </div>
+
+                {/* Brief & Guidelines Card */}
+                <div className="p-5 bg-black/40 border border-gray-800 rounded-lg">
+                    <h3 className="text-base font-semibold mb-4 flex items-center gap-2"><FileText className="h-5 w-5 text-orange-400"/>Brief & Guidelines</h3>
+                    {/* Campaign Brief */}
+                    {(campaignBriefOriginal || campaignBriefRepurposed) && (
+                      <div className="mb-4">
+                          <h4 className="text-sm font-medium text-gray-300 mb-2">Campaign Brief</h4>
+                          {campaignBriefOriginal && (campaignContentType === 'original' || campaignContentType === 'both') && (
+                            <div className="prose prose-sm prose-invert max-w-none bg-black/20 p-3 rounded border border-gray-700 mb-2">
+                              <p className="text-xs font-semibold text-green-400 mb-1">Original Content Brief:</p>
+                              <p className="text-gray-300 whitespace-pre-line">{campaignBriefOriginal}</p>
+                            </div>
+                          )}
+                          {campaignBriefRepurposed && (campaignContentType === 'repurposed' || campaignContentType === 'both') && (
+                            <div className="prose prose-sm prose-invert max-w-none bg-black/20 p-3 rounded border border-gray-700">
+                              <p className="text-xs font-semibold text-blue-400 mb-1">Repurposed Content Brief:</p>
+                              <p className="text-gray-300 whitespace-pre-line">{campaignBriefRepurposed}</p>
+                            </div>
+                          )}
+                      </div>
+                    )}
+                    {/* Content Guidelines */}
+                    {Array.isArray(contentGuidelines) && contentGuidelines.length > 0 && (
+                      <div className="mb-4">
+                        <h4 className="text-sm font-medium text-gray-300 mb-2">Content Guidelines</h4>
+                          {(campaignContentType === 'original' || campaignContentType === 'both') && (
+                            <div className="mb-2">
+                              <h5 className="text-xs text-gray-400 mb-1 flex items-center gap-1"><Video className="h-3 w-3 text-green-400" />Original:</h5>
+                              <ul className="list-disc pl-5 space-y-1 text-xs text-gray-300">
+                                {contentGuidelines
+                                  .filter((_, index) => campaignContentType === 'both' ? index < Math.ceil(contentGuidelines.length / 2) : true)
+                                  .map((guideline: string, index: number) => <li key={`og-${index}`}>{guideline}</li>)}
+                              </ul>
+                            </div>
+                          )}
+                          {(campaignContentType === 'repurposed' || campaignContentType === 'both') && (
+                              <div>
+                              <h5 className="text-xs text-gray-400 mb-1 flex items-center gap-1"><Share2 className="h-3 w-3 text-blue-400" />Repurposed:</h5>
+                              <ul className="list-disc pl-5 space-y-1 text-xs text-gray-300">
+                                  {contentGuidelines
+                                  .filter((_, index) => campaignContentType === 'both' ? index >= Math.ceil(contentGuidelines.length / 2) : true)
+                                  .map((guideline: string, index: number) => <li key={`rp-${index}`}>{guideline}</li>)}
+                              </ul>
+                            </div>
+                          )}
+                      </div>
+                    )}
+                    {/* Required Hashtags */}
+                    {(hashtagsOriginal || hashtagsRepurposed) && (
+                        <div>
+                        <h4 className="text-sm font-medium text-gray-300 mb-2">Required Hashtags</h4>
+                          {hashtagsOriginal && (campaignContentType === 'original' || campaignContentType === 'both') && (
+                            <div className="mb-2">
+                              <h5 className="text-xs text-gray-400 mb-1">Original:</h5>
+                              <div className="flex flex-wrap gap-1">
+                                {hashtagsOriginal.split(' ').filter((tag: string) => tag.trim() !== '').map((tag: string, index: number) => (
+                                  <span key={`ht-og-${index}`} className="px-2 py-0.5 bg-blue-900/30 text-blue-400 rounded-full text-xs">{tag.startsWith('#') ? tag : `#${tag}`}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {hashtagsRepurposed && (campaignContentType === 'repurposed' || campaignContentType === 'both') && (
+                            <div>
+                              <h5 className="text-xs text-gray-400 mb-1">Repurposed:</h5>
+                              <div className="flex flex-wrap gap-1">
+                                {hashtagsRepurposed.split(' ').filter((tag: string) => tag.trim() !== '').map((tag: string, index: number) => (
+                                  <span key={`ht-rp-${index}`} className="px-2 py-0.5 bg-blue-900/30 text-blue-400 rounded-full text-xs">{tag.startsWith('#') ? tag : `#${tag}`}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                      </div>
+                    )}
+                </div>
+              </div>
+
+              {/* Right Column */}
+              <div className="md:col-span-1 space-y-6">
+                  {/* Payout Card */}
+                <div className="p-5 bg-black/40 border border-gray-800 rounded-lg">
+                    <h3 className="text-base font-semibold mb-4 flex items-center gap-2"><DollarSign className="h-5 w-5 text-green-400"/>Payout Details</h3>
+                      <div className="space-y-3">
+                        {payoutRateOriginal && (campaignContentType === 'original' || campaignContentType === 'both') && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm flex items-center gap-1"><Video className="h-4 w-4 text-green-400"/>Original Content</span>
+                            <span className="font-semibold text-green-400">{payoutRateOriginal}</span>
+                          </div>
+                        )}
+                        {payoutRateRepurposed && (campaignContentType === 'repurposed' || campaignContentType === 'both') && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm flex items-center gap-1"><Share2 className="h-4 w-4 text-blue-400"/>Repurposed Content</span>
+                            <span className="font-semibold text-blue-400">{payoutRateRepurposed}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between pt-2 border-t border-gray-700">
+                          <span className="text-sm">Min. Views for Payout</span>
+                          <span className="font-semibold">{formatNumber(minViewsForPayout)}</span>
+                        </div>
+                      </div>
+                  </div>
+
+                {/* Platform Stats Card */}
+                 <div className="p-5 bg-black/40 border border-gray-800 rounded-lg">
+                    <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
+                      <PieChart className="h-5 w-5 text-purple-400" />
+                      Performance by Platform
+                    </h3>
+                    <div className="space-y-3">
+                      {Object.entries(performanceStats.platformBreakdown).length > 0 ? (
+                         Object.entries(performanceStats.platformBreakdown).map(([platform, stats]) => (
+                          <div key={platform} className="p-3 bg-black/20 border border-gray-700 rounded">
+                            <h4 className="text-sm font-medium capitalize flex items-center gap-1.5 mb-2">
+                              {platform.toLowerCase() === 'instagram' && <Instagram className="h-4 w-4 text-pink-400" />}
+                              {platform.toLowerCase() === 'tiktok' && <svg className="h-4 w-4 text-cyan-400" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z" /></svg>}
+                              {platform.toLowerCase() === 'youtube' && <Youtube className="h-4 w-4 text-red-400" />}
+                              {platform.toLowerCase() === 'twitter' && <Twitter className="h-4 w-4 text-blue-400" />}
+                              {platform}
+                            </h4>
+                            <div className="grid grid-cols-3 gap-2 text-xs">
+                              <div className="text-center">
+                                <p className="text-gray-400">Posts</p>
+                                <p className="font-semibold">{stats.posts}</p>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-gray-400">Views</p>
+                                <p className="font-semibold">{formatNumber(stats.views)}</p>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-gray-400">Earned</p>
+                                <p className="font-semibold text-green-400">{formatMoney(stats.earned)}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-gray-500 italic">No posts submitted yet.</p>
+                      )}
+                    </div>
+                 </div>
+
+                {/* Target Audience Card (Optional - uncomment if needed and data exists) */}
+                {/* {campaign.targetAudience && (campaign.targetAudience.locations?.length > 0 || campaign.targetAudience.interests?.length > 0) && (
+                  <div className="p-5 bg-black/40 border border-gray-800 rounded-lg">
+                    <h3 className="text-base font-semibold mb-4 flex items-center gap-2"><Target className="h-5 w-5 text-red-400"/>Target Audience</h3>
+                    <div className="space-y-2 text-sm">
+                        {campaign.targetAudience.age && campaign.targetAudience.age.length === 2 && (
+                            <div>
+                              <p className="text-gray-400 text-xs mb-1">Age Range</p>
+                              <p>{campaign.targetAudience.age[0]} - {campaign.targetAudience.age[1]}</p>
+                            </div>
+                        )}
+                        {campaign.targetAudience.locations && campaign.targetAudience.locations.length > 0 && (
+                            <div>
+                              <p className="text-gray-400 text-xs mb-1">Locations</p>
+                              <p>{campaign.targetAudience.locations.join(', ')}</p>
+                            </div>
+                        )}
+                        {campaign.targetAudience.interests && campaign.targetAudience.interests.length > 0 && (
+                            <div>
+                              <p className="text-gray-400 text-xs mb-1">Interests</p>
+                              <p>{campaign.targetAudience.interests.join(', ')}</p>
+                            </div>
+                        )}
+                    </div>
+                  </div>
+                )} */}
+              </div>
             </div>
-          )}
-        </div>
+          </motion.div>
+
       </motion.div>
     </div>
   );

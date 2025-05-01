@@ -527,86 +527,63 @@ export const useCampaigns = ({ userId, userType }: UseCampaignsProps = {}): UseC
 
   // Join campaign
   const joinCampaign = useCallback(async (campaignId: string, selectedPlatforms?: string[]): Promise<CampaignApplication> => {
-    if (!userId) throw new Error('User ID is required');
+    if (!userId) throw new Error('User ID is required to join a campaign');
     setLoading(true);
     try {
       let application: CampaignApplication;
-      
+
       try {
-        // Try to apply to the campaign
-        application = await campaignService.applyToCampaign(userId, { 
-          campaign_id: campaignId,
-          platforms: selectedPlatforms
-        });
+        // Try to join the campaign using the correct service method and pass the userId
+        application = await campaignService.joinCampaign(campaignId, selectedPlatforms || [], userId);
       } catch (err: any) {
-        // Check if it's a database issue
+        // Check if it's a database issue (mocking logic)
         if (err && (err.message?.includes('relation') || err.message?.includes('does not exist'))) {
           console.log('ℹ️ Creating mock application for demo purposes');
-          
+
           // Create a mock application
           application = {
             id: `mock-app-${Date.now()}`,
             campaign_id: campaignId,
             creator_id: userId,
-            status: 'pending',
+            status: 'active', // Assume 'active' on successful join/mock
             application_date: new Date().toISOString(),
             platforms: selectedPlatforms || [],
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           };
         }
-        // If it's a duplicate key error, fetch the existing application
-        else if (err && err.code === '23505') {
-          console.log('Duplicate application detected, fetching existing record');
-          const { data, error } = await supabase
-            .from('campaign_creators')
-            .select('*')
-            .eq('campaign_id', campaignId)
-            .eq('creator_id', userId)
-            .single();
-          
-          if (error) {
-            if (error.message?.includes('relation') || error.message?.includes('does not exist')) {
-              // Create mock application for duplicate cases too
-              application = {
-                id: `mock-app-${Date.now()}`,
-                campaign_id: campaignId,
-                creator_id: userId,
-                status: 'pending',
-                application_date: new Date().toISOString(),
-                platforms: selectedPlatforms || [],
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              };
-            } else {
-              throw error;
-            }
-          } else {
-            application = data;
-          }
+        // Handle potential "already joined" errors if the RPC function enforces uniqueness
+        // or if the service layer throws a specific error for it.
+        else if (err && (err.code === '23505' || err.message?.toLowerCase().includes('already joined') || err.message?.includes('Could not join campaign') )) {
+          console.log('Duplicate application/join detected, fetching existing record or handling gracefully');
+          // Re-throw the error to be handled by the calling component (e.g., show toast)
+          throw new Error('You have already joined this campaign.'); // Throw a user-friendly error
         } else {
+          // Rethrow other unexpected errors
           throw err;
         }
       }
-      
+
       // Update the application list only if we don't already have this application
-      const applicationExists = creatorApplications.some(app => 
+      const applicationExists = creatorApplications.some(app =>
         app.campaign_id === application.campaign_id && app.creator_id === application.creator_id
       );
-      
+
       if (!applicationExists) {
         setCreatorApplications(prev => [...prev, application]);
       }
-      
+
       return application;
     } catch (err) {
-      console.error('Error in joinCampaign:', err);
-      setError('Failed to join campaign');
-      throw err;
+      console.error('Error in useCampaigns hook joinCampaign:', err); // More specific log
+      // Set error state or re-throw depending on desired handling
+      const errorMessage = err instanceof Error ? err.message : 'Failed to join campaign';
+      setError(errorMessage); // Set error state for the hook
+      throw err; // Re-throw the error so the calling component can handle it (e.g., show toast)
     } finally {
       setLoading(false);
     }
-  }, [userId, creatorApplications]);
+  }, [userId, creatorApplications]); // userId is a dependency
 
   // Submit content
   const submitContent = useCallback(async (data: any): Promise<CampaignSubmission> => {

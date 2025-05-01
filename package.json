@@ -15,7 +15,9 @@
     "@supabase/supabase-js": "^2.49.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cookie-parser": "^1.4.7",
     "dotenv": "^16.4.7",
+    "express": "^5.1.0",
     "framer-motion": "^11.0.5",
     "instagram-private-api": "^1.45.3",
     "lucide-react": "^0.323.0",
@@ -32,6 +34,8 @@
     "youtube-api": "^3.0.1"
   },
   "devDependencies": {
+    "@types/cookie-parser": "^1.4.8",
+    "@types/express": "^5.0.1",
     "@types/react": "18.2.57",
     "@types/react-dom": "18.2.19",
     "@vitejs/plugin-react": "^4.2.1",

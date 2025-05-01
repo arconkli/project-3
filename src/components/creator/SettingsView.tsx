@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Bell, Globe, Lock, User, Instagram, Youtube, 
   Twitter, Plus, X, AlertCircle, Eye, EyeOff, Check, ChevronLeft,
   Save
 } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
+import { toast } from 'react-hot-toast';
+import type { UserProfile } from './types';
 
 // Sample interface for connected accounts
 interface SocialAccount {
@@ -24,7 +27,12 @@ interface ConnectedAccounts {
 
 type SecurityView = 'main' | 'password' | '2fa' | 'privacy';
 
-const SettingsView: React.FC = () => {
+interface SettingsViewProps {
+  userProfile: UserProfile | null;
+  onUpdate: () => void;
+}
+
+const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onUpdate }) => {
   const [notificationSettings, setNotificationSettings] = useState({
     email: true,
     campaigns: true,
@@ -33,11 +41,15 @@ const SettingsView: React.FC = () => {
   });
 
   const [profileSettings, setProfileSettings] = useState({
-    name: 'John Creator',
-    bio: 'Content creator passionate about tech',
-    email: 'creator@create-os.com',
-    phone: '+1 (555) 123-4567'
+    full_name: '',
+    bio: '',
+    email: '',
+    phone: '',
+    username: '',
+    website: '',
   });
+
+  const [initialProfileSettings, setInitialProfileSettings] = useState(profileSettings);
 
   // Security section states
   const [securityView, setSecurityView] = useState<SecurityView>('main');
@@ -76,16 +88,7 @@ const SettingsView: React.FC = () => {
         addedOn: '2023-10-20'
       }
     ],
-    tiktok: [
-      {
-        id: 'tt1',
-        username: 'johncreator',
-        followers: '520K',
-        isVerified: true,
-        isPrimary: true,
-        addedOn: '2023-09-30'
-      }
-    ],
+    tiktok: [],
     twitter: []
   });
 
@@ -93,7 +96,72 @@ const SettingsView: React.FC = () => {
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
   const [accountToAdd, setAccountToAdd] = useState<string | null>(null);
   const [newUsername, setNewUsername] = useState('');
-  
+
+  // Add the TikTok connection handler here, before useEffect
+  const handleConnectTikTok = async () => {
+    const toastId = toast.loading('Redirecting to TikTok...');
+    localStorage.removeItem('tiktok_oauth_state'); // Clear any old state
+
+    try {
+      // Call the backend API route to get the auth URL and state
+      const response = await fetch('/api/auth/tiktok/initiate');
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to get TikTok auth URL from server.');
+      }
+
+      const { authUrl, state } = data;
+
+      if (!authUrl || !state) {
+        throw new Error('Invalid response received from server.');
+      }
+
+      // Store state temporarily to verify on callback
+      localStorage.setItem('tiktok_oauth_state', state);
+
+      console.log('Redirecting to TikTok via server-generated URL:', authUrl);
+
+      // Redirect user to the URL provided by the server
+      window.location.href = authUrl;
+
+      // Toast will be dismissed by the page navigation
+    } catch (error: any) {
+      console.error('Error initiating TikTok OAuth via API:', error);
+      toast.error(`Failed to connect TikTok: ${error.message || 'Unknown error'}`, { id: toastId });
+      localStorage.removeItem('tiktok_oauth_state'); // Clean up stored state if redirect fails
+    }
+  };
+
+  // Effect to initialize state from userProfile prop
+  useEffect(() => {
+    if (userProfile) {
+      const initialSettings = {
+        full_name: userProfile.full_name || '',
+        bio: userProfile.bio || '',
+        email: userProfile.email || '',
+        phone: userProfile.phone || '',
+        username: userProfile.username || '',
+        website: userProfile.website || '',
+      };
+      setProfileSettings(initialSettings);
+      setInitialProfileSettings(initialSettings);
+      
+      // Initialize notification settings if they exist on the profile
+      if (userProfile.notification_preferences) { // Assuming a notification_preferences field
+          setNotificationSettings(userProfile.notification_preferences);
+      }
+
+      console.log('SettingsView initialized with profile:', userProfile);
+    } else {
+      console.log('SettingsView: userProfile is null');
+    }
+  }, [userProfile]);
+
+  const handleProfileInputChange = (field: keyof typeof profileSettings, value: string) => {
+    setProfileSettings(prev => ({ ...prev, [field]: value }));
+  };
+
   const handleNotificationToggle = (key: keyof typeof notificationSettings) => {
     setNotificationSettings(prev => ({
       ...prev,
@@ -152,37 +220,61 @@ const SettingsView: React.FC = () => {
     setNewUsername('');
   };
 
-  const handlePasswordChange = (e: React.FormEvent) => {
+  const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError('');
     setPasswordSuccess(false);
+    let toastId: string | undefined;
 
     // Basic validation
     if (!passwordData.current) {
       setPasswordError('Current password is required');
       return;
     }
-
     if (passwordData.new.length < 8) {
       setPasswordError('New password must be at least 8 characters');
       return;
     }
-
     if (passwordData.new !== passwordData.confirm) {
       setPasswordError('New passwords do not match');
       return;
     }
 
-    // This would normally call an API to change the password
-    // For demo purposes, we'll just simulate success
-    setTimeout(() => {
-      setPasswordSuccess(true);
-      setPasswordData({
-        current: '',
-        new: '',
-        confirm: ''
+    toastId = toast.loading('Updating password...');
+
+    try {
+      // *** Check current password first (optional but recommended) ***
+      // This usually requires a custom function/endpoint as Supabase doesn't directly expose password checking.
+      // If you don't have a check, proceed directly to update.
+      // console.warn('Skipping current password check - implement if needed.');
+
+      // *** Update user password with Supabase Auth ***
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: passwordData.new
       });
-    }, 800);
+
+      if (updateError) {
+        // Check for specific errors if needed
+        if (updateError.message.includes('New password should be different')) {
+           setPasswordError('New password must be different from the current password.');
+        } else if (updateError.message.includes('Password should be at least')) {
+           setPasswordError('New password is too weak.');
+        } else {
+           setPasswordError(`Failed to update password: ${updateError.message}`);
+        }
+        throw updateError; // Re-throw to be caught below
+      }
+
+      // Success
+      toast.success('Password updated successfully!', { id: toastId });
+      setPasswordSuccess(true);
+      setPasswordData({ current: '', new: '', confirm: '' });
+
+    } catch (error) {
+      console.error('Error updating password:', error);
+      toast.error(passwordError || 'Failed to update password.', { id: toastId });
+      setPasswordSuccess(false); // Ensure success state is false on error
+    }
   };
 
   const handlePasswordInput = (field: keyof typeof passwordData, value: string) => {
@@ -422,14 +514,60 @@ const SettingsView: React.FC = () => {
     }
   };
 
-  const handleSaveChanges = () => {
-    // Here you would normally save all settings to your backend
-    setShowSaveConfirmation(true);
-    
-    // Hide the confirmation after a few seconds
-    setTimeout(() => {
-      setShowSaveConfirmation(false);
-    }, 3000);
+  const handleSaveChanges = async () => {
+    if (!userProfile) {
+        toast.error('User profile not loaded.');
+        return;
+    }
+
+    // Create the update object
+    const updateData: { [key: string]: any } = {};
+
+    // Find changed profile fields
+    Object.keys(profileSettings).forEach((key) => {
+        const typedKey = key as keyof typeof profileSettings;
+        if (profileSettings[typedKey] !== initialProfileSettings[typedKey]) {
+            updateData[typedKey] = profileSettings[typedKey];
+        }
+    });
+
+    // *** Add notification settings to the update object ***
+    // We might always want to save notifications, even if unchanged relative to initial load?
+    // Or compare against initial notification state if fetched from profile.
+    updateData.notification_preferences = notificationSettings; // Assuming column name
+
+    if (Object.keys(updateData).length === 0) {
+        toast('No changes to save.');
+        return;
+    }
+    // Remove notification_preferences if it wasn't actually changed (optional, saves bandwidth if unchanged)
+    // if (JSON.stringify(updateData.notification_preferences) === JSON.stringify(initialNotificationSettings)) {
+    //    delete updateData.notification_preferences;
+    // }
+    // if (Object.keys(updateData).length === 0) { /* Check again after removing */ }
+
+    const toastId = toast.loading('Saving settings...');
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update(updateData) // Send combined profile and notification changes
+        .eq('id', userProfile.id); // <-- Use userProfile.id
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success('Settings updated successfully!', { id: toastId });
+      // Update initial state to reflect saved changes
+      setInitialProfileSettings(profileSettings); 
+      // Optionally update initialNotificationSettings if needed
+      onUpdate(); // Trigger dashboard refresh
+
+    } catch (error: any) {
+      console.error('Error saving settings:', error);
+      toast.error(`Failed to save settings: ${error.message}`, { id: toastId });
+    } 
   };
 
   return (
@@ -445,8 +583,17 @@ const SettingsView: React.FC = () => {
             <label className="block text-sm text-gray-400 mb-1">Display Name</label>
             <input
               type="text"
-              value={profileSettings.name}
-              onChange={(e) => setProfileSettings(prev => ({ ...prev, name: e.target.value }))}
+              value={profileSettings.full_name}
+              onChange={(e) => handleProfileInputChange('full_name', e.target.value)}
+              className="w-full px-3 py-2 bg-black/20 border border-gray-700 rounded-lg focus:outline-none focus:border-red-500 text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Username</label>
+            <input
+              type="text"
+              value={profileSettings.username}
+              onChange={(e) => handleProfileInputChange('username', e.target.value)}
               className="w-full px-3 py-2 bg-black/20 border border-gray-700 rounded-lg focus:outline-none focus:border-red-500 text-white"
             />
           </div>
@@ -455,15 +602,16 @@ const SettingsView: React.FC = () => {
             <input
               type="email"
               value={profileSettings.email}
-              onChange={(e) => setProfileSettings(prev => ({ ...prev, email: e.target.value }))}
-              className="w-full px-3 py-2 bg-black/20 border border-gray-700 rounded-lg focus:outline-none focus:border-red-500 text-white"
+              readOnly
+              className="w-full px-3 py-2 bg-black/30 border border-gray-800 rounded-lg text-gray-400 cursor-not-allowed"
             />
+            <p className="text-xs text-gray-500 mt-1">Email can be changed via your account provider or password reset flow.</p>
           </div>
           <div>
             <label className="block text-sm text-gray-400 mb-1">Bio</label>
             <textarea
               value={profileSettings.bio}
-              onChange={(e) => setProfileSettings(prev => ({ ...prev, bio: e.target.value }))}
+              onChange={(e) => handleProfileInputChange('bio', e.target.value)}
               className="w-full px-3 py-2 bg-black/20 border border-gray-700 rounded-lg focus:outline-none focus:border-red-500 text-white h-24"
             />
           </div>
@@ -472,7 +620,17 @@ const SettingsView: React.FC = () => {
             <input
               type="tel"
               value={profileSettings.phone}
-              onChange={(e) => setProfileSettings(prev => ({ ...prev, phone: e.target.value }))}
+              onChange={(e) => handleProfileInputChange('phone', e.target.value)}
+              className="w-full px-3 py-2 bg-black/20 border border-gray-700 rounded-lg focus:outline-none focus:border-red-500 text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Website</label>
+            <input
+              type="url"
+              value={profileSettings.website}
+              onChange={(e) => handleProfileInputChange('website', e.target.value)}
+              placeholder="https://yourwebsite.com"
               className="w-full px-3 py-2 bg-black/20 border border-gray-700 rounded-lg focus:outline-none focus:border-red-500 text-white"
             />
           </div>
@@ -513,7 +671,7 @@ const SettingsView: React.FC = () => {
                   <div className="border border-blue-900/30 bg-blue-900/10 rounded-lg p-4 text-center">
                     <p className="text-blue-400 text-sm">No {platform} accounts connected yet</p>
                     <button
-                      onClick={() => handleAddAccount(platform)}
+                      onClick={platform === 'tiktok' ? handleConnectTikTok : () => handleAddAccount(platform)}
                       className="mt-2 text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                     >
                       Connect {platform.charAt(0).toUpperCase() + platform.slice(1)}

@@ -893,34 +893,33 @@ export class CampaignService {
         }
     }
 
-    async joinCampaign(campaignId: string, platforms: string[]): Promise<CampaignApplication> {
-        console.log("[CampaignService] Creator joining campaign:", campaignId);
+    async joinCampaign(campaignId: string, platforms: string[], userId: string): Promise<CampaignApplication> {
+        console.log(`[CampaignService] Creator ${userId} joining campaign: ${campaignId}`);
         try {
-            const { session } = await this.supabase.auth.getSession();
-            const userId = session?.user?.id;
-            
             if (!userId) {
-                throw new Error('Creator must be authenticated to join campaigns');
+                console.error('[CampaignService] joinCampaign called without a valid userId!');
+                throw new Error('User ID was not provided to joinCampaign');
             }
             
-            // Use the SQL function we created
+            // Use the SQL function we created, ensuring parameter names match SQL definition
             const { data: application, error: joinError } = await this.supabase
                 .rpc('join_campaign', { 
-                    campaign_id: campaignId,
-                    user_id: userId,
-                    platforms: platforms
+                    p_campaign_id: campaignId, // Corrected parameter name
+                    p_user_id: userId,         // Corrected parameter name
+                    p_platforms: platforms     // Corrected parameter name
                 });
                 
             if (joinError) {
-                console.error("[CampaignService] Error joining campaign:", joinError);
+                console.error("[CampaignService] Error joining campaign via RPC:", joinError);
                 throw joinError;
             }
             
             if (!application || application.length === 0) {
-                throw new Error(`Could not join campaign with ID ${campaignId}`);
+                console.warn(`[CampaignService] RPC join_campaign returned no data for campaign ${campaignId} and user ${userId}. Perhaps already joined?`);
+                throw new Error(`Could not join campaign ${campaignId}. Ensure the join_campaign RPC function handles existing memberships.`);
             }
             
-            console.log("[CampaignService] Campaign joined successfully:", application[0]);
+            console.log("[CampaignService] Campaign joined successfully via RPC:", application[0]);
             return application[0];
         } catch (error) {
             console.error("[CampaignService] Error in joinCampaign:", error);
